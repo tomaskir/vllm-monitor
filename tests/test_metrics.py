@@ -90,6 +90,27 @@ def test_rate_computation():
     assert current.prompt_tokens_per_sec == pytest.approx(50.0)
 
 
+def test_spec_decode_acceptance():
+    text = (
+        'vllm:spec_decode_num_draft_tokens_total{engine="0",model_name="m"} 1000.0\n'
+        'vllm:spec_decode_num_accepted_tokens_total{engine="0",model_name="m"} 700.0\n'
+    )
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    m = VllmMetrics()
+    poller._parse_into(m, text)
+    assert m.spec_decode_active is True
+    assert m.spec_acceptance_rate == pytest.approx(70.0)
+
+
+def test_spec_decode_absent_is_inactive():
+    # MTP/spec-decode off → metrics absent → inactive, no crash, no rate.
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    m = VllmMetrics()
+    poller._parse_into(m, 'vllm:num_requests_running{model_name="m"} 1.0')
+    assert m.spec_decode_active is False
+    assert m.spec_acceptance_rate == 0.0
+
+
 def test_bar_chart_dimensions():
     rows = bar_chart(deque([1, 2, 3], maxlen=60), width=10, height=4)
     assert len(rows) == 4  # height rows

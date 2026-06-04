@@ -42,6 +42,7 @@ async def test_app_composes_and_ticks():
             "#card-ttft",
             "#card-tpot",
             "#card-queue",
+            "#card-spec",
             "#spark-running",
             "#spark-gentps",
             "#spark-cache",
@@ -110,6 +111,19 @@ async def test_sparkline_card_renders_chart_with_scale():
         assert text.count("\n") == CHART_HEIGHT - 1  # multi-row chart
         assert "5" in text.splitlines()[0]  # peak shown on the top axis row
         assert "│" in text  # y-axis gutter present
+    await app._poller.close()
+
+
+async def test_spec_decode_card_shows_dash_when_inactive():
+    """With spec decode off (offline poller → no metrics), the card shows '—'."""
+    app = _make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app._tick()  # unreachable → spec_decode_active stays False
+        await pilot.pause()
+        assert not app.metrics.spec_decode_active
+        text = str(app.query_one("#card-spec-value").render())
+        assert "—" in text and "%" not in text
     await app._poller.close()
 
 

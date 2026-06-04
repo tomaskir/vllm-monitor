@@ -193,7 +193,7 @@ class VllmMonitorApp(App):
     #body {
         height: 1fr;
     }
-    #model-row, #latency-row, #metrics-row {
+    #model-row, #latency-row, #metrics-row, #efficiency-row {
         height: 5;
         margin: 0;
     }
@@ -238,6 +238,8 @@ class VllmMonitorApp(App):
                 yield MetricCard("card-gpu-cache", "GPU KV Cache")
                 yield MetricCard("card-prefix-hit", "Prefix Cache Hit")
                 yield MetricCard("card-gpu-mem", "GPU Memory")
+            with Horizontal(id="efficiency-row"):
+                yield MetricCard("card-spec", "Spec Decode Accept")
             with Horizontal(id="sparklines-row"):
                 yield SparklineCard("spark-running", "Active Requests (history)")
                 yield SparklineCard("spark-gentps", "Gen Tokens/s (history)")
@@ -286,6 +288,13 @@ class VllmMonitorApp(App):
 
         self.query_one("#card-gpu-cache", MetricCard).update_value(_color_pct(m.gpu_cache_usage_perc, GPU_CACHE_WARN, GPU_CACHE_CRIT))
         self.query_one("#card-prefix-hit", MetricCard).update_value(f"[bold cyan]{m.gpu_prefix_cache_hit_rate:.1f}%[/bold cyan]")
+
+        if m.spec_decode_active:
+            self.query_one("#card-spec", MetricCard).update_value(
+                f"[bold cyan]{m.spec_acceptance_rate:.1f}%[/bold cyan]"
+            )
+        else:
+            self.query_one("#card-spec", MetricCard).update_value("[dim]—[/dim]")
 
         # GPU memory
         if m.gpu_memory_total_bytes > 0:

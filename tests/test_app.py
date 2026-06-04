@@ -8,7 +8,9 @@ points at an unreachable address so poll() returns offline metrics.
 
 from __future__ import annotations
 
-from vllm_monitor.app import ModelInfoPanel, VllmMonitorApp
+from collections import deque
+
+from vllm_monitor.app import CHART_HEIGHT, ModelInfoPanel, SparklineCard, VllmMonitorApp
 from vllm_monitor.metrics import MetricsPoller, ModelInfo, VllmMetrics
 
 
@@ -84,6 +86,22 @@ async def test_markup_in_model_name_does_not_crash():
         label = app.query_one("#model-id")
         # The literal text is preserved (escaped), not interpreted as markup.
         assert "evil[/]name [red]x" in str(label.render())
+    await app._poller.close()
+
+
+async def test_sparkline_card_renders_chart_with_scale():
+    """The history chart is multi-row and shows the peak value as a y-axis scale."""
+    app = _make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        card = app.query_one("#spark-running", SparklineCard)
+        values = deque([0.0, 1.0, 2.0, 5.0], maxlen=60)
+        card.update_spark(values, "current=5", lambda x: f"{x:.0f}")
+        await pilot.pause()
+        text = str(app.query_one("#spark-running-spark").render())
+        assert text.count("\n") == CHART_HEIGHT - 1  # multi-row chart
+        assert "5" in text.splitlines()[0]  # peak shown on the top axis row
+        assert "│" in text  # y-axis gutter present
     await app._poller.close()
 
 

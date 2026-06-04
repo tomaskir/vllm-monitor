@@ -260,16 +260,25 @@ class MetricsPoller:
         self.history.gpu_cache.append(m.gpu_cache_usage_perc)
 
 
-def sparkline(values: deque[float], width: int = 20) -> str:
-    """Render a unicode block sparkline from a deque of floats."""
-    bars = " ▁▂▃▄▅▆▇█"
+def bar_chart(values: deque[float], width: int = 20, height: int = 4) -> list[str]:
+    """Render a multi-row vertical bar chart from a deque of floats.
+
+    Returns `height` strings (top row first), each `min(width, len)` wide.
+    Bars are scaled to the window's peak using eighth-block resolution.
+    """
+    blocks = " ▁▂▃▄▅▆▇█"  # index 0..8 eighths of a cell
     # Treat non-finite samples (NaN/Inf) as 0 so int() below can't raise.
     samples = [v if math.isfinite(v) else 0.0 for v in list(values)[-width:]]
     if not samples:
-        return " " * width
+        samples = [0.0]
     max_val = max(samples) or 1.0
-    result = []
-    for v in samples:
-        idx = min(int(v / max_val * (len(bars) - 1)), len(bars) - 1)
-        result.append(bars[max(0, idx)])
-    return "".join(result)
+    grid = [[" "] * len(samples) for _ in range(height)]
+    for col, v in enumerate(samples):
+        eighths = int(round(max(0.0, v) / max_val * height * 8))
+        eighths = min(eighths, height * 8)
+        full, rem = divmod(eighths, 8)
+        for r in range(full):
+            grid[height - 1 - r][col] = "█"
+        if rem and full < height:
+            grid[height - 1 - full][col] = blocks[rem]
+    return ["".join(row) for row in grid]

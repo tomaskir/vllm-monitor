@@ -6,7 +6,7 @@ from collections import deque
 
 import pytest
 
-from vllm_monitor.metrics import MetricsPoller, VllmMetrics, _parse_prometheus, sparkline
+from vllm_monitor.metrics import MetricsPoller, VllmMetrics, _parse_prometheus, bar_chart
 
 # Mirrors the schema emitted by the vLLM v1 engine (engine/model labels,
 # kv_cache_usage_perc, prefix cache counters, no /v1/models needed for the name).
@@ -80,26 +80,23 @@ def test_rate_computation():
     assert current.prompt_tokens_per_sec == pytest.approx(50.0)
 
 
-def test_sparkline_basic():
-    data: deque[float] = deque([0, 1, 2, 3, 4, 5], maxlen=60)
-    spark = sparkline(data, width=6)
-    assert len(spark) == 6
-    assert spark[0] == " "  # 0 maps to empty
-    assert spark[-1] == "█"  # max maps to full
+def test_bar_chart_dimensions():
+    rows = bar_chart(deque([1, 2, 3], maxlen=60), width=10, height=4)
+    assert len(rows) == 4  # height rows
+    assert all(len(r) == 3 for r in rows)  # one column per sample (capped at width)
 
 
-def test_sparkline_empty():
-    data: deque[float] = deque(maxlen=60)
-    spark = sparkline(data, width=10)
-    assert spark == " " * 10
+def test_bar_chart_empty():
+    rows = bar_chart(deque(maxlen=60), width=10, height=4)
+    assert len(rows) == 4
+    assert all(set(r) <= {" "} for r in rows)  # nothing to plot → blank
 
 
-def test_sparkline_all_same():
-    data: deque[float] = deque([5.0] * 10, maxlen=60)
-    spark = sparkline(data, width=10)
-    assert len(spark) == 10
-    # all same value → all map to max bar (since max_val == value)
-    assert all(c == "█" for c in spark)
+def test_bar_chart_scaling():
+    # 0 → empty column; peak → full column (every row filled, incl. the top).
+    rows = bar_chart(deque([0.0, 4.0], maxlen=60), width=2, height=3)
+    assert all(r[0] == " " for r in rows)  # zero column blank top to bottom
+    assert all(r[1] == "█" for r in rows)  # peak column full top to bottom
 
 
 def test_parse_drops_non_finite():
@@ -115,8 +112,8 @@ def test_parse_drops_non_finite():
     assert raw['vllm:num_requests_waiting{model_name="m"}'] == pytest.approx(4.0)
 
 
-def test_sparkline_handles_non_finite():
-    # A NaN/Inf sample must not raise (int(NaN) would); it renders as 0.
-    spark = sparkline(deque([0.0, float("nan"), float("inf"), 2.0]), width=4)
-    assert len(spark) == 4
-    assert spark[1] == " " and spark[2] == " "  # NaN/Inf → 0 → empty bar
+def test_bar_chart_handles_non_finite():
+    # NaN/Inf samples must not raise (int(NaN) would).
+    rows = bar_chart(deque([0.0, float("nan"), float("inf"), 2.0], maxlen=60), width=4, height=3)
+    assert len(rows) == 3
+    assert all(len(r) == 4 for r in rows)

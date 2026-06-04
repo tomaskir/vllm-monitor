@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import math
+from collections import deque
+from collections.abc import Callable
 from typing import Optional
 
 from rich.markup import escape
@@ -12,7 +15,10 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Label, Static
 
-from .metrics import MetricsPoller, VllmMetrics, sparkline
+from .metrics import MetricsPoller, VllmMetrics, bar_chart
+
+# Vertical resolution of the history charts, in text rows.
+CHART_HEIGHT = 5
 
 # Alert thresholds
 GPU_MEM_WARN = 80.0
@@ -73,7 +79,7 @@ class SparklineCard(Static):
     SparklineCard {
         border: round $accent;
         padding: 0 1;
-        height: 5;
+        height: 9;
     }
     SparklineCard .spark-title {
         color: $text-muted;
@@ -96,9 +102,33 @@ class SparklineCard(Static):
         yield Label("", classes="spark-line", id=f"{self.id}-spark")
         yield Label("", classes="spark-label", id=f"{self.id}-label")
 
-    def update_spark(self, spark: str, label: str) -> None:
-        self.query_one(f"#{self.id}-spark", Label).update(spark)
-        self.query_one(f"#{self.id}-label", Label).update(label)
+    def update_spark(
+        self, values: deque[float], caption: str, fmt: Callable[[float], str]
+    ) -> None:
+        """Render the history as a multi-row bar chart with a y-axis scale.
+
+        `fmt` formats the axis numbers (peak at top, 0 at bottom); `caption`
+        is the line shown beneath the chart (e.g. the current value).
+        """
+        finite = [v for v in values if math.isfinite(v)]
+        peak = max(finite) if finite else 0.0
+        top = fmt(peak)
+        gutter = max(len(top), 1)
+        # Fit the chart to the card's content width, leaving room for the axis.
+        avail = max(self.content_size.width, gutter + 9)
+        chart_w = max(8, avail - gutter - 1)
+        rows = bar_chart(values, chart_w, CHART_HEIGHT)
+        lines = []
+        for i, row in enumerate(rows):
+            if i == 0:
+                axis = top.rjust(gutter)
+            elif i == len(rows) - 1:
+                axis = "0".rjust(gutter)
+            else:
+                axis = " " * gutter
+            lines.append(f"{axis}│{row}")
+        self.query_one(f"#{self.id}-spark", Label).update("\n".join(lines))
+        self.query_one(f"#{self.id}-label", Label).update(caption)
 
 
 class ModelInfoPanel(Static):
@@ -156,7 +186,7 @@ class VllmMonitorApp(App):
         margin: 0;
     }
     #sparklines-row {
-        height: 5;
+        height: 9;
         margin: 0;
     }
     #model-row {
@@ -254,16 +284,19 @@ class VllmMonitorApp(App):
         # Sparklines
         h = self._poller.history
         self.query_one("#spark-running", SparklineCard).update_spark(
-            sparkline(h.requests_running, 40),
-            f"current={m.num_requests_running:.0f}"
+            h.requests_running,
+            f"current={m.num_requests_running:.0f}",
+            lambda x: f"{x:.0f}",
         )
         self.query_one("#spark-gentps", SparklineCard).update_spark(
-            sparkline(h.generation_tps, 40),
-            f"current={m.generation_tokens_per_sec:.1f} tok/s"
+            h.generation_tps,
+            f"current={m.generation_tokens_per_sec:.1f} tok/s",
+            lambda x: f"{x:.0f}",
         )
         self.query_one("#spark-cache", SparklineCard).update_spark(
-            sparkline(h.gpu_cache, 40),
-            f"current={m.gpu_cache_usage_perc:.1f}%"
+            h.gpu_cache,
+            f"current={m.gpu_cache_usage_perc:.1f}%",
+            lambda x: f"{x:.0f}%",
         )
 
     def action_refresh(self) -> None:

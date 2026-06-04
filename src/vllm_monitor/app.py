@@ -56,6 +56,18 @@ def _format_duration(seconds: float) -> str:
     return f"{hours}h {rem // 60}m"
 
 
+def _format_count(n: float) -> str:
+    """Compact count: 1234 → '1.2K', 14175549 → '14.2M'."""
+    n = abs(n)
+    if n < 1000:
+        return f"{n:.0f}"
+    if n < 1_000_000:
+        return f"{n / 1e3:.1f}K"
+    if n < 1_000_000_000:
+        return f"{n / 1e6:.1f}M"
+    return f"{n / 1e9:.1f}B"
+
+
 def _fmt_latency(seconds: float) -> str:
     """Format a latency value as markup; '—' when unknown (<= 0)."""
     if seconds <= 0:
@@ -306,15 +318,18 @@ class VllmMonitorApp(App):
             f"[bold {preempt_color}]{preempt:.0f}[/bold {preempt_color}]"
         )
 
-        # Completed requests by finish reason: total, with truncated/errored split.
+        # Completed: total requests and tokens processed (prompt + generation),
+        # with the truncated-by-length / errored split.
         reasons = m.finished_reasons
         if reasons:
             total = sum(reasons.values())
             length = reasons.get("length", 0.0)
             errs = reasons.get("error", 0.0) + reasons.get("abort", 0.0)
             err_color = "red" if errs else "dim"
+            tokens = m.prompt_tokens_total + m.generation_tokens_total
             self.query_one("#card-finished", MetricCard).update_value(
-                f"[bold white]{total:.0f}[/bold white]\n"
+                f"[bold white]{total:,.0f} req[/bold white] · "
+                f"[white]{_format_count(tokens)} tok[/white]\n"
                 f"[dim]len {length:.0f}[/dim] · [{err_color}]err {errs:.0f}[/{err_color}]"
             )
         else:

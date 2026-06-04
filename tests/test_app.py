@@ -17,6 +17,7 @@ from vllm_monitor.app import (
     ModelInfoPanel,
     SparklineCard,
     VllmMonitorApp,
+    _format_count,
     _format_duration,
 )
 from vllm_monitor.metrics import MetricsPoller, ModelInfo, VllmMetrics
@@ -36,6 +37,21 @@ from vllm_monitor.metrics import MetricsPoller, ModelInfo, VllmMetrics
 )
 def test_format_duration(seconds, expected):
     assert _format_duration(seconds) == expected
+
+
+@pytest.mark.parametrize(
+    "n,expected",
+    [
+        (0, "0"),
+        (999, "999"),
+        (1234, "1.2K"),
+        (486542, "486.5K"),
+        (14175549, "14.2M"),
+        (2_500_000_000, "2.5B"),
+    ],
+)
+def test_format_count(n, expected):
+    assert _format_count(n) == expected
 
 
 def _make_app() -> VllmMonitorApp:

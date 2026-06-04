@@ -74,33 +74,39 @@ def _fmt_latency(seconds: float) -> str:
 
 
 class MetricCard(Static):
-    """A single metric display card."""
+    """A metric tile. Its title lives in the top border; the value fills the
+    body. Single-value tiles are 3 rows; two-value tiles use ``tall=True``."""
 
     DEFAULT_CSS = """
     MetricCard {
         border: round $accent;
+        border-title-align: left;
+        border-title-color: $text-muted;
         padding: 0 1;
-        height: 5;
+        height: 3;
+        width: 1fr;
+        margin: 0 1;
     }
-    MetricCard .card-title {
-        color: $text-muted;
-        text-style: bold;
+    MetricCard.tall {
+        height: 4;
     }
     MetricCard .card-value {
         text-style: bold;
-        height: 2;
-        content-align: center middle;
+        height: 1fr;
         width: 1fr;
+        content-align: center middle;
     }
     """
 
-    def __init__(self, card_id: str, title: str, **kwargs) -> None:
-        super().__init__(**kwargs, id=card_id)
+    def __init__(self, card_id: str, title: str, tall: bool = False, **kwargs) -> None:
+        super().__init__(id=card_id, classes="tall" if tall else "", **kwargs)
         self._title = title
 
     def compose(self) -> ComposeResult:
-        yield Label(self._title, classes="card-title")
         yield Label("—", classes="card-value", id=f"{self.id}-value")
+
+    def on_mount(self) -> None:
+        self.border_title = self._title
 
     def update_value(self, markup: str) -> None:
         self.query_one(f"#{self.id}-value", Label).update(markup)
@@ -112,12 +118,12 @@ class SparklineCard(Static):
     DEFAULT_CSS = """
     SparklineCard {
         border: round $accent;
+        border-title-align: left;
+        border-title-color: $text-muted;
         padding: 0 1;
-        height: 9;
-    }
-    SparklineCard .spark-title {
-        color: $text-muted;
-        text-style: bold;
+        height: 8;
+        width: 1fr;
+        margin: 0 1;
     }
     SparklineCard .spark-line {
         color: $success;
@@ -132,9 +138,11 @@ class SparklineCard(Static):
         self._title = title
 
     def compose(self) -> ComposeResult:
-        yield Label(self._title, classes="spark-title")
         yield Label("", classes="spark-line", id=f"{self.id}-spark")
         yield Label("", classes="spark-label", id=f"{self.id}-label")
+
+    def on_mount(self) -> None:
+        self.border_title = self._title
 
     def update_spark(
         self, values: deque[float], caption: str, fmt: Callable[[float], str]
@@ -165,46 +173,17 @@ class SparklineCard(Static):
         self.query_one(f"#{self.id}-label", Label).update(caption)
 
 
-class ModelInfoPanel(Static):
-    """Panel showing model info."""
-
-    DEFAULT_CSS = """
-    ModelInfoPanel {
-        border: round $accent;
-        padding: 0 1;
-        height: 5;
-    }
-    ModelInfoPanel .model-title {
-        color: $text-muted;
-        text-style: bold;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield Label("Model Info", classes="model-title")
-        yield Label("—", id="model-id")
-        yield Label("", id="model-extra")
-
-    def update_model(self, m: VllmMetrics) -> None:
-        info = m.model_info
-        # Server-provided; escape so markup metacharacters can't inject styling
-        # or raise MarkupError and crash the render.
-        model_id = escape(info.model_id or "unknown")
-        self.query_one("#model-id", Label).update(f"[bold cyan]{model_id}[/bold cyan]")
-        extras = []
-        if info.max_model_len:
-            extras.append(f"ctx {info.max_model_len}")
-        if info.tensor_parallel_size:
-            extras.append(f"tp {info.tensor_parallel_size}")
-        if info.cache_dtype:
-            extras.append(f"kv {escape(info.cache_dtype)}")
-        if info.num_gpu_blocks:
-            extras.append(f"{info.num_gpu_blocks} blks")
-        if info.gpu_memory_utilization:
-            extras.append(f"util {info.gpu_memory_utilization:.0%}")
-        self.query_one("#model-extra", Label).update(
-            f"[dim]{' · '.join(extras)}[/dim]" if extras else ""
-        )
+def _model_bar_markup(m: VllmMetrics) -> str:
+    """Build the model header line: name + cache config (markup-escaped)."""
+    info = m.model_info
+    parts = [f"[bold cyan]{escape(info.model_id or 'unknown')}[/bold cyan]"]
+    if info.cache_dtype:
+        parts.append(f"kv {escape(info.cache_dtype)}")
+    if info.num_gpu_blocks:
+        parts.append(f"{info.num_gpu_blocks} blks")
+    if info.gpu_memory_utilization:
+        parts.append(f"util {info.gpu_memory_utilization:.0%}")
+    return "  ·  ".join(parts)
 
 
 class VllmMonitorApp(App):
@@ -223,20 +202,28 @@ class VllmMonitorApp(App):
         background: $panel;
         color: $text-muted;
     }
+    #model-bar {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
     #body {
         height: 1fr;
     }
-    #model-row, #latency-row, #metrics-row, #efficiency-row {
-        height: 5;
-        margin: 0;
+    .section {
+        color: $accent;
+        text-style: bold;
+        height: 1;
+        margin: 1 0 0 1;
+    }
+    .tile-row {
+        height: 3;
+    }
+    .tall-row {
+        height: 4;
     }
     #sparklines-row {
-        height: 9;
-        margin: 0;
-    }
-    MetricCard, SparklineCard, ModelInfoPanel {
-        width: 1fr;
-        margin: 0 1;
+        height: 8;
     }
     """
 
@@ -255,30 +242,35 @@ class VllmMonitorApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Label("", id="status-bar")
+        yield Label("", id="model-bar")
         with VerticalScroll(id="body"):
-            with Horizontal(id="model-row"):
-                yield ModelInfoPanel(id="model-panel")
-                yield MetricCard("card-running", "Running Requests")
-                yield MetricCard("card-waiting", "Queued Requests")
+            yield Label("LOAD", classes="section")
+            with Horizontal(id="load-row", classes="tile-row"):
+                yield MetricCard("card-running", "Running")
+                yield MetricCard("card-waiting", "Queued")
                 yield MetricCard("card-preemptions", "Preemptions")
-            with Horizontal(id="latency-row"):
-                yield MetricCard("card-latency", "Avg E2E Latency")
-                yield MetricCard("card-ttft", "Time to First Token")
-                yield MetricCard("card-tpot", "Time / Output Token")
+            yield Label("LATENCY", classes="section")
+            with Horizontal(id="latency-row", classes="tile-row"):
+                yield MetricCard("card-latency", "E2E Latency")
+                yield MetricCard("card-ttft", "TTFT")
+                yield MetricCard("card-tpot", "TPOT")
                 yield MetricCard("card-queue", "Queue Time")
-            with Horizontal(id="metrics-row"):
+            yield Label("THROUGHPUT & CACHE", classes="section")
+            with Horizontal(id="throughput-row", classes="tile-row"):
                 yield MetricCard("card-prompt-tps", "Prompt Tokens/s")
                 yield MetricCard("card-gen-tps", "Gen Tokens/s")
                 yield MetricCard("card-gpu-cache", "GPU KV Cache")
                 yield MetricCard("card-prefix-hit", "Prefix Cache Hit")
-            with Horizontal(id="efficiency-row"):
-                yield MetricCard("card-spec", "Spec Accept (MTP)")
-                yield MetricCard("card-finished", "Completed")
-                yield MetricCard("card-avgreq", "Avg Req Tokens")
+            yield Label("STATS", classes="section")
+            with Horizontal(id="stats-row", classes="tall-row"):
+                yield MetricCard("card-spec", "Spec Accept (MTP)", tall=True)
+                yield MetricCard("card-finished", "Completed", tall=True)
+                yield MetricCard("card-avgreq", "Avg Req Tokens", tall=True)
+            yield Label("HISTORY", classes="section")
             with Horizontal(id="sparklines-row"):
-                yield SparklineCard("spark-running", "Active Requests (history)")
-                yield SparklineCard("spark-gentps", "Gen Tokens/s (history)")
-                yield SparklineCard("spark-cache", "GPU Cache % (history)")
+                yield SparklineCard("spark-running", "Active Requests")
+                yield SparklineCard("spark-gentps", "Gen Tokens/s")
+                yield SparklineCard("spark-cache", "GPU Cache %")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -304,7 +296,7 @@ class VllmMonitorApp(App):
             f"[dim]interval={self._interval:.0f}s[/dim]"
         )
 
-        self.query_one("#model-panel", ModelInfoPanel).update_model(m)
+        self.query_one("#model-bar", Label).update(_model_bar_markup(m))
 
         self.query_one("#card-running", MetricCard).update_value(f"[bold cyan]{m.num_requests_running:.0f}[/bold cyan]")
         self.query_one("#card-waiting", MetricCard).update_value(f"[bold yellow]{m.num_requests_waiting:.0f}[/bold yellow]")

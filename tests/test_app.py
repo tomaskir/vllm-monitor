@@ -15,7 +15,6 @@ import pytest
 from vllm_monitor.app import (
     CHART_HEIGHT,
     MetricCard,
-    ModelInfoPanel,
     SparklineCard,
     VllmMonitorApp,
     _format_count,
@@ -71,7 +70,7 @@ async def test_app_composes_and_ticks():
         # Card ids referenced by _update_ui must all resolve.
         for selector in (
             "#status-bar",
-            "#model-panel",
+            "#model-bar",
             "#card-running",
             "#card-waiting",
             "#card-latency",
@@ -102,10 +101,10 @@ async def test_rows_lay_out_side_by_side():
     sibling after the first.
     """
     expected = {
-        "#model-row": 4,
+        "#load-row": 3,
         "#latency-row": 4,
-        "#metrics-row": 4,
-        "#efficiency-row": 3,
+        "#throughput-row": 4,
+        "#stats-row": 3,
         "#sparklines-row": 3,
     }
     # Narrow widths (44/80) used to overflow: any fixed min-width on the cards
@@ -131,14 +130,12 @@ async def test_markup_in_model_name_does_not_crash():
     app = _make_app()
     async with app.run_test() as pilot:
         await pilot.pause()
-        panel = app.query_one("#model-panel", ModelInfoPanel)
         m = VllmMetrics()
         m.model_info = ModelInfo(model_id="evil[/]name [red]x")
-        panel.update_model(m)  # must not raise
+        app._update_ui(m)  # must not raise
         await pilot.pause()
-        label = app.query_one("#model-id")
         # The literal text is preserved (escaped), not interpreted as markup.
-        assert "evil[/]name [red]x" in str(label.render())
+        assert "evil[/]name [red]x" in str(app.query_one("#model-bar").render())
     await app._poller.close()
 
 

@@ -56,6 +56,49 @@ Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-pr
 pip install vllm-monitor
 ```
 
+## Docker
+
+A prebuilt image is published to GitHub Container Registry on every release
+(tags: `latest`, `X.Y.Z`, `X.Y`). vllm-monitor is a **client** — it connects
+out to a vLLM server and renders a terminal UI, so run it with `-it` (a TTY)
+and point it at your server. It serves no ports.
+
+```bash
+# Pull the latest release
+docker pull ghcr.io/tomaskir/vllm-monitor:latest
+
+# Monitor a remote vLLM server
+docker run --rm -it ghcr.io/tomaskir/vllm-monitor --url http://10.0.0.5:8000
+
+# Monitor vLLM on the same host (Linux): share the host network
+docker run --rm -it --network host ghcr.io/tomaskir/vllm-monitor --url http://localhost:8000
+
+# macOS / Windows: reach the host via host.docker.internal
+docker run --rm -it ghcr.io/tomaskir/vllm-monitor --url http://host.docker.internal:8000
+
+# Configure entirely via environment variables
+docker run --rm -it \
+  -e VLLM_URL=http://10.0.0.5:8000 \
+  -e VLLM_API_KEY=mytoken \
+  -e VLLM_MONITOR_INTERVAL=1 \
+  ghcr.io/tomaskir/vllm-monitor
+```
+
+| Env var | Equivalent flag | Default |
+|---------|-----------------|---------|
+| `VLLM_URL` | `--url` | `http://localhost:8000` |
+| `VLLM_API_KEY` | `--api-key` | _(none)_ |
+| `VLLM_MONITOR_INTERVAL` | `--interval` | `2` |
+
+Build it yourself:
+
+```bash
+docker build -t vllm-monitor .
+docker run --rm -it vllm-monitor --url http://10.0.0.5:8000
+```
+
+> `-it` is required — without a TTY the TUI cannot render. `--rm` removes the container on exit.
+
 ## Usage
 
 ```bash

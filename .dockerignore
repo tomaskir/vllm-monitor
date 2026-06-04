@@ -1,0 +1,21 @@
+# Keep the build context small and the wheel reproducible.
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+tests/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+uv.lock
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.claude-home/
+claude/
+CLAUDE.md

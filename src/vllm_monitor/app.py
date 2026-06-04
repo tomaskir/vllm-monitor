@@ -207,9 +207,14 @@ class VllmMonitorApp(App):
         self.call_after_refresh(self._tick)
 
     async def _tick(self) -> None:
-        m = await self._poller.poll()
-        self.metrics = m
-        self._update_ui(m)
+        # Never let a single bad sample or render error tear down the app —
+        # log it and keep the dashboard running for the next tick.
+        try:
+            m = await self._poller.poll()
+            self.metrics = m
+            self._update_ui(m)
+        except Exception as exc:  # noqa: BLE001 - last-resort UI guard
+            self.log.error(f"tick failed: {exc!r}")
 
     def _update_ui(self, m: VllmMetrics) -> None:
         status = self.query_one("#status-bar", Label)

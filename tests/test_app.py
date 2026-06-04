@@ -85,3 +85,19 @@ async def test_markup_in_model_name_does_not_crash():
         # The literal text is preserved (escaped), not interpreted as markup.
         assert "evil[/]name [red]x" in str(label.render())
     await app._poller.close()
+
+
+async def test_tick_survives_poll_error():
+    """A failing poll/render must be swallowed so the dashboard keeps running."""
+    app = _make_app()
+
+    async def boom() -> VllmMetrics:
+        raise RuntimeError("network exploded")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._poller.poll = boom  # type: ignore[method-assign]
+        await app._tick()  # must not raise
+        await pilot.pause()
+        assert app.is_running
+    await app._poller.close()

@@ -275,7 +275,7 @@ class VllmMonitorApp(App):
                 yield MetricCard("card-prefix-hit", "Prefix Cache Hit")
                 yield MetricCard("card-gpu-mem", "GPU Memory")
             with Horizontal(id="efficiency-row"):
-                yield MetricCard("card-spec", "Spec Decode Accept")
+                yield MetricCard("card-spec", "Spec Accept (MTP)")
                 yield MetricCard("card-finished", "Completed")
             with Horizontal(id="sparklines-row"):
                 yield SparklineCard("spark-running", "Active Requests (history)")

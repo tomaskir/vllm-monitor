@@ -9,6 +9,7 @@ description = "Real-time terminal UI dashboard for monitoring vLLM server metric
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Dennis Reichenberg" }]
+maintainers = [{ name = "Tomas Kirnak" }]
 keywords = ["vllm", "llm", "monitor", "tui", "dashboard", "ai", "metrics", "textual"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -36,9 +37,9 @@ dev = ["pytest>=8", "pytest-asyncio", "ruff", "mypy", "textual-dev"]
 vllm-monitor = "vllm_monitor.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/dennisreichenberg/vllm-monitor"
-Repository = "https://github.com/dennisreichenberg/vllm-monitor"
-Issues = "https://github.com/dennisreichenberg/vllm-monitor/issues"
+Homepage = "https://github.com/tomaskir/vllm-monitor"
+Repository = "https://github.com/tomaskir/vllm-monitor"
+Issues = "https://github.com/tomaskir/vllm-monitor/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

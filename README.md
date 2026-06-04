@@ -85,6 +85,10 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Acknowledgments
+
+Originally created by [Dennis Reichenberg](https://github.com/dennisreichenberg). Maintained as a fork by [Tomas Kirnak](https://github.com/tomaskir).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

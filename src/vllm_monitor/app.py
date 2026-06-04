@@ -162,6 +162,7 @@ class VllmMonitorApp(App):
         margin: 0;
     }
     MetricCard, SparklineCard, ModelInfoPanel {
+        width: 1fr;
         margin: 0 1;
     }
     """

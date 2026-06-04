@@ -44,3 +44,22 @@ async def test_app_composes_and_ticks():
             assert app.query(selector), f"missing widget {selector}"
 
     await app._poller.close()
+
+
+async def test_rows_lay_out_side_by_side():
+    """Each row shows all its cards side-by-side, not just the first one.
+
+    Regression for cards defaulting to full container width, which hid every
+    sibling after the first.
+    """
+    app = _make_app()
+    expected = {"#model-row": 4, "#metrics-row": 5, "#sparklines-row": 3}
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        for row, count in expected.items():
+            cards = app.query_one(row).children
+            assert len(cards) == count, f"{row} has {len(cards)} cards, expected {count}"
+            xs = [c.region.x for c in cards]
+            assert all(c.region.width > 0 for c in cards), f"{row} has a zero-width card"
+            assert len(set(xs)) == count, f"{row} cards overlap: x offsets {xs}"
+    await app._poller.close()

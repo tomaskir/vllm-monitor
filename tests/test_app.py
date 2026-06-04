@@ -198,6 +198,17 @@ async def test_command_palette_is_outlined():
     await app._poller.close()
 
 
+async def test_header_icon_removed():
+    """The default ⭘ header icon is cleared."""
+    from textual.widgets import Header
+
+    app = _make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.query_one(Header).icon == ""
+    await app._poller.close()
+
+
 async def test_tick_survives_poll_error():
     """A failing poll/render must be swallowed so the dashboard keeps running."""
     app = _make_app()

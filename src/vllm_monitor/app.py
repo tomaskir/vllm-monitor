@@ -291,6 +291,7 @@ class VllmMonitorApp(App):
 
     def on_mount(self) -> None:
         self.theme = "ansi-dark"
+        self.query_one(Header).icon = ""  # drop the default ⭘ header icon
         self.set_interval(self._interval, self._tick)
         self.call_after_refresh(self._tick)
 
@@ -307,15 +308,23 @@ class VllmMonitorApp(App):
     def _update_ui(self, m: VllmMetrics) -> None:
         status = self.query_one("#status-bar", Label)
         status.update(
-            f"{_status_color(m.server_reachable)}   "
-            f"[dim]{escape(self._poller.base_url)}[/dim]"
-            f"[dim]   ·   refresh {self._interval:.0f}s[/dim]"
+            "  ·  ".join(
+                [
+                    _status_color(m.server_reachable),
+                    f"[dim]{escape(self._poller.base_url)}[/dim]",
+                    f"[dim]refresh {self._interval:.0f}s[/dim]",
+                ]
+            )
         )
 
         self.query_one("#model-bar", Label).update(_model_bar_markup(m))
 
         self.query_one("#card-running", MetricCard).update_value(f"[bold white]{m.num_requests_running:.0f}[/bold white]")
-        self.query_one("#card-waiting", MetricCard).update_value(f"[bold white]{m.num_requests_waiting:.0f}[/bold white]")
+        # Queued: green when empty, yellow once a backlog forms.
+        waiting_color = "green" if m.num_requests_waiting == 0 else "yellow"
+        self.query_one("#card-waiting", MetricCard).update_value(
+            f"[bold {waiting_color}]{m.num_requests_waiting:.0f}[/bold {waiting_color}]"
+        )
 
         # Preemptions: green at 0, yellow once any have occurred (KV pressure).
         preempt = m.num_preemptions_total

@@ -314,8 +314,8 @@ class VllmMonitorApp(App):
 
         self.query_one("#model-bar", Label).update(_model_bar_markup(m))
 
-        self.query_one("#card-running", MetricCard).update_value(f"[bold cyan]{m.num_requests_running:.0f}[/bold cyan]")
-        self.query_one("#card-waiting", MetricCard).update_value(f"[bold yellow]{m.num_requests_waiting:.0f}[/bold yellow]")
+        self.query_one("#card-running", MetricCard).update_value(f"[bold white]{m.num_requests_running:.0f}[/bold white]")
+        self.query_one("#card-waiting", MetricCard).update_value(f"[bold white]{m.num_requests_waiting:.0f}[/bold white]")
 
         # Preemptions: green at 0, yellow once any have occurred (KV pressure).
         preempt = m.num_preemptions_total
@@ -363,11 +363,11 @@ class VllmMonitorApp(App):
         self.query_one("#card-gen-tps", MetricCard).update_value(f"[bold white]{m.generation_tokens_per_sec:.1f}[/bold white]")
 
         self.query_one("#card-gpu-cache", MetricCard).update_value(_color_pct(m.gpu_cache_usage_perc, GPU_CACHE_WARN, GPU_CACHE_CRIT))
-        self.query_one("#card-prefix-hit", MetricCard).update_value(f"[bold cyan]{m.gpu_prefix_cache_hit_rate:.1f}%[/bold cyan]")
+        self.query_one("#card-prefix-hit", MetricCard).update_value(f"[bold white]{m.gpu_prefix_cache_hit_rate:.1f}%[/bold white]")
 
         if m.spec_decode_active:
             self.query_one("#card-spec", MetricCard).update_value(
-                f"[bold cyan]{m.spec_acceptance_rate:.1f}%[/bold cyan]\n"
+                f"[bold white]{m.spec_acceptance_rate:.1f}%[/bold white]\n"
                 f"[dim]{m.spec_accept_length:.2f} tok/step[/dim]"
             )
         else:

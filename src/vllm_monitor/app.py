@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -122,7 +123,9 @@ class ModelInfoPanel(Static):
 
     def update_model(self, m: VllmMetrics) -> None:
         info = m.model_info
-        model_id = info.model_id or "unknown"
+        # Server-provided; escape so markup metacharacters can't inject styling
+        # or raise MarkupError and crash the render.
+        model_id = escape(info.model_id or "unknown")
         self.query_one("#model-id", Label).update(f"[bold cyan]{model_id}[/bold cyan]")
         extras = []
         if info.max_model_len:
@@ -212,7 +215,7 @@ class VllmMonitorApp(App):
         status = self.query_one("#status-bar", Label)
         status.update(
             f"{_status_color(m.server_reachable)}  "
-            f"[dim]{self._poller.base_url}[/dim]  "
+            f"[dim]{escape(self._poller.base_url)}[/dim]  "
             f"[dim]interval={self._interval:.0f}s[/dim]"
         )
 

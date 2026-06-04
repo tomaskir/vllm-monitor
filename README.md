@@ -52,8 +52,14 @@ Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-pr
 
 ## Installation
 
+Install from source, or use the [Docker image](#docker).
+
 ```bash
-pip install vllm-monitor
+# Recommended: isolated install with pipx
+pipx install git+https://github.com/tomaskir/vllm-monitor
+
+# or with pip
+pip install git+https://github.com/tomaskir/vllm-monitor
 ```
 
 ## Docker

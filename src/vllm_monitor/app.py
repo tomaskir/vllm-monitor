@@ -80,7 +80,6 @@ class SparklineCard(Static):
         text-style: bold;
     }
     SparklineCard .spark-line {
-        font-family: monospace;
         color: $success;
     }
     SparklineCard .spark-label {
@@ -194,9 +193,9 @@ class VllmMonitorApp(App):
             yield MetricCard("card-prefix-hit", "Prefix Cache Hit")
             yield MetricCard("card-gpu-mem", "GPU Memory")
         with Horizontal(id="sparklines-row"):
-            yield SparklineCard("spark-requests", "Active Requests (history)", id="spark-running")
-            yield SparklineCard("spark-gen", "Gen Tokens/s (history)", id="spark-gentps")
-            yield SparklineCard("spark-cache", "GPU Cache % (history)", id="spark-cache")
+            yield SparklineCard("spark-running", "Active Requests (history)")
+            yield SparklineCard("spark-gentps", "Gen Tokens/s (history)")
+            yield SparklineCard("spark-cache", "GPU Cache % (history)")
         yield Footer()
 
     def on_mount(self) -> None:

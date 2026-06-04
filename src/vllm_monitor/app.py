@@ -39,13 +39,28 @@ def _status_color(reachable: bool) -> str:
     return "[bold green]● ONLINE[/bold green]" if reachable else "[bold red]● OFFLINE[/bold red]"
 
 
+def _format_duration(seconds: float) -> str:
+    """Human-friendly duration with a unit that fits the magnitude.
+
+    <1s → ms, <1min → s, <1h → "Mm Ss", else "Hh Mm".
+    """
+    if seconds < 1:
+        ms = seconds * 1000
+        return f"{ms:.1f}ms" if ms < 10 else f"{ms:.0f}ms"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    if seconds < 3600:
+        minutes, secs = divmod(int(round(seconds)), 60)
+        return f"{minutes}m {secs}s"
+    hours, rem = divmod(int(round(seconds)), 3600)
+    return f"{hours}h {rem // 60}m"
+
+
 def _fmt_latency(seconds: float) -> str:
-    """Format a latency: '—' when unknown, ms under a second, else seconds."""
+    """Format a latency value as markup; '—' when unknown (<= 0)."""
     if seconds <= 0:
         return "[dim]—[/dim]"
-    if seconds < 1:
-        return f"[bold white]{seconds * 1000:.0f}ms[/bold white]"
-    return f"[bold white]{seconds:.1f}s[/bold white]"
+    return f"[bold white]{_format_duration(seconds)}[/bold white]"
 
 
 class MetricCard(Static):

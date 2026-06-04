@@ -10,8 +10,32 @@ from __future__ import annotations
 
 from collections import deque
 
-from vllm_monitor.app import CHART_HEIGHT, ModelInfoPanel, SparklineCard, VllmMonitorApp
+import pytest
+
+from vllm_monitor.app import (
+    CHART_HEIGHT,
+    ModelInfoPanel,
+    SparklineCard,
+    VllmMonitorApp,
+    _format_duration,
+)
 from vllm_monitor.metrics import MetricsPoller, ModelInfo, VllmMetrics
+
+
+@pytest.mark.parametrize(
+    "seconds,expected",
+    [
+        (0.0005, "0.5ms"),   # sub-millisecond
+        (0.0497, "50ms"),    # TPOT-ish
+        (0.5, "500ms"),      # under a second → ms
+        (1.0, "1.0s"),       # second range → s
+        (22.6, "22.6s"),
+        (90, "1m 30s"),      # minutes
+        (3661, "1h 1m"),     # hours
+    ],
+)
+def test_format_duration(seconds, expected):
+    assert _format_duration(seconds) == expected
 
 
 def _make_app() -> VllmMonitorApp:

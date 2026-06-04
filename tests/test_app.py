@@ -43,6 +43,8 @@ async def test_app_composes_and_ticks():
             "#card-tpot",
             "#card-queue",
             "#card-spec",
+            "#card-preemptions",
+            "#card-finished",
             "#spark-running",
             "#spark-gentps",
             "#spark-cache",
@@ -59,9 +61,10 @@ async def test_rows_lay_out_side_by_side():
     sibling after the first.
     """
     expected = {
-        "#model-row": 3,
+        "#model-row": 4,
         "#latency-row": 4,
         "#metrics-row": 5,
+        "#efficiency-row": 2,
         "#sparklines-row": 3,
     }
     # Narrow widths (44/80) used to overflow: any fixed min-width on the cards

@@ -42,7 +42,10 @@ class VllmMetrics:
     num_requests_running: float = 0.0
     num_requests_waiting: float = 0.0
     num_requests_swapped: float = 0.0
+    num_preemptions_total: float = 0.0
     request_success_total: float = 0.0
+    # Completed-request counts keyed by finish reason (stop/length/abort/error/…)
+    finished_reasons: dict[str, float] = field(default_factory=dict)
 
     # Token throughput (tokens/sec, computed as delta)
     prompt_tokens_total: float = 0.0
@@ -213,6 +216,8 @@ class MetricsPoller:
         spec_draft = 0.0
         spec_accepted = 0.0
         spec_present = False
+        preemptions = 0.0
+        finished: dict[str, float] = {}
         for k, v in raw.items():
             name = k.split("{", 1)[0]
             if name == "vllm:prompt_tokens_total":
@@ -221,6 +226,11 @@ class MetricsPoller:
                 gen_total += v
             elif name == "vllm:request_success_total":
                 success_total += v
+                rm = re.search(r'finished_reason="([^"]*)"', k)
+                reason = rm.group(1) if rm else "unknown"
+                finished[reason] = finished.get(reason, 0.0) + v
+            elif name == "vllm:num_preemptions_total":
+                preemptions += v
             elif name == "vllm:prefix_cache_queries_total":
                 prefix_queries += v
             elif name == "vllm:prefix_cache_hits_total":
@@ -233,6 +243,8 @@ class MetricsPoller:
         m.prompt_tokens_total = prompt_total
         m.generation_tokens_total = gen_total
         m.request_success_total = success_total
+        m.num_preemptions_total = preemptions
+        m.finished_reasons = finished
         m.prefix_cache_queries_total = prefix_queries
         m.prefix_cache_hits_total = prefix_hits
 

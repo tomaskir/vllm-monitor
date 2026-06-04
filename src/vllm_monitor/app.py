@@ -227,6 +227,7 @@ class VllmMonitorApp(App):
                 yield ModelInfoPanel(id="model-panel")
                 yield MetricCard("card-running", "Running Requests")
                 yield MetricCard("card-waiting", "Queued Requests")
+                yield MetricCard("card-preemptions", "Preemptions")
             with Horizontal(id="latency-row"):
                 yield MetricCard("card-latency", "Avg E2E Latency")
                 yield MetricCard("card-ttft", "Time to First Token")
@@ -240,6 +241,7 @@ class VllmMonitorApp(App):
                 yield MetricCard("card-gpu-mem", "GPU Memory")
             with Horizontal(id="efficiency-row"):
                 yield MetricCard("card-spec", "Spec Decode Accept")
+                yield MetricCard("card-finished", "Completed")
             with Horizontal(id="sparklines-row"):
                 yield SparklineCard("spark-running", "Active Requests (history)")
                 yield SparklineCard("spark-gentps", "Gen Tokens/s (history)")
@@ -273,6 +275,27 @@ class VllmMonitorApp(App):
 
         self.query_one("#card-running", MetricCard).update_value(f"[bold cyan]{m.num_requests_running:.0f}[/bold cyan]")
         self.query_one("#card-waiting", MetricCard).update_value(f"[bold yellow]{m.num_requests_waiting:.0f}[/bold yellow]")
+
+        # Preemptions: green at 0, yellow once any have occurred (KV pressure).
+        preempt = m.num_preemptions_total
+        preempt_color = "green" if preempt == 0 else "yellow"
+        self.query_one("#card-preemptions", MetricCard).update_value(
+            f"[bold {preempt_color}]{preempt:.0f}[/bold {preempt_color}]"
+        )
+
+        # Completed requests by finish reason: total, with truncated/errored split.
+        reasons = m.finished_reasons
+        if reasons:
+            total = sum(reasons.values())
+            length = reasons.get("length", 0.0)
+            errs = reasons.get("error", 0.0) + reasons.get("abort", 0.0)
+            err_color = "red" if errs else "dim"
+            self.query_one("#card-finished", MetricCard).update_value(
+                f"[bold white]{total:.0f}[/bold white]\n"
+                f"[dim]len {length:.0f}[/dim] · [{err_color}]err {errs:.0f}[/{err_color}]"
+            )
+        else:
+            self.query_one("#card-finished", MetricCard).update_value("[dim]—[/dim]")
 
         for card_id, key in (
             ("#card-latency", "e2e"),

@@ -90,6 +90,25 @@ def test_rate_computation():
     assert current.prompt_tokens_per_sec == pytest.approx(50.0)
 
 
+def test_preemptions_and_finish_reasons():
+    text = (
+        'vllm:num_preemptions_total{engine="0",model_name="m"} 5.0\n'
+        'vllm:request_success_total{engine="0",finished_reason="stop",model_name="m"} 10.0\n'
+        'vllm:request_success_total{engine="0",finished_reason="length",model_name="m"} 4.0\n'
+        'vllm:request_success_total{engine="0",finished_reason="error",model_name="m"} 1.0\n'
+    )
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    m = VllmMetrics()
+    poller._parse_into(m, text)
+    assert m.num_preemptions_total == pytest.approx(5.0)
+    assert m.finished_reasons == {
+        "stop": pytest.approx(10.0),
+        "length": pytest.approx(4.0),
+        "error": pytest.approx(1.0),
+    }
+    assert m.request_success_total == pytest.approx(15.0)
+
+
 def test_spec_decode_acceptance():
     text = (
         'vllm:spec_decode_num_draft_tokens_total{engine="0",model_name="m"} 1000.0\n'

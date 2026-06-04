@@ -2,38 +2,9 @@
 
 Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-project/vllm) server metrics. No Grafana required.
 
-```
-              vllm-monitor — vLLM Health Dashboard
- ╭───────────────────────────────────────────────────╮
- │ ● ONLINE   http://localhost:8000   ·   refresh 2s   │
- │ deepseek-v4-flash · kv fp8 · 94671 blks · util 92%  │
- ╰───────────────────────────────────────────────────╯
- LOAD
- ╭ Running ─╮ ╭ Queued ──╮ ╭ Preemptions ╮
- │    3     │ │    7     │ │      0      │
- ╰──────────╯ ╰──────────╯ ╰─────────────╯
- LATENCY
- ╭ E2E Latency ╮ ╭ TTFT ─╮ ╭ TPOT ─╮ ╭ Queue Time ╮
- │    1.6s     │ │ 280ms │ │ 22ms  │ │   140ms    │
- ╰─────────────╯ ╰───────╯ ╰───────╯ ╰────────────╯
- THROUGHPUT & CACHE
- ╭ Prompt Tokens/s ╮ ╭ Gen Tokens/s ╮ ╭ GPU KV Cache ╮ ╭ Prefix Cache Hit ╮
- │      450.2      │ │    312.7     │ │    42.0%     │ │      75.0%       │
- ╰─────────────────╯ ╰──────────────╯ ╰──────────────╯ ╰──────────────────╯
- STATS
- ╭ Spec Accept (MTP) ╮ ╭ Completed ───────────╮ ╭ Avg Req Tokens ╮
- │ 70.6%             │ │ 1,021 req · 14.7M tok │ │ 13.9K in       │
- │ 1.41 tok/step     │ │ len 387 · err 0       │ │ 500 out        │
- ╰───────────────────╯ ╰───────────────────────╯ ╰────────────────╯
- HISTORY
- ╭ Active Requests ╮ ╭ Gen Tokens/s ───╮ ╭ GPU Cache % ────╮
- │312│      ▁█▅▁   │ │   │     ▂▄▆█▆▄▂  │ │   │    ▁▂▃▄▅▆▇   │
- │   │    ▂█████▇  │ │   │   ▄██████▇   │ │   │  ▃▅███████   │
- │  0│ ▁▂▄▇███████ │ │  0│ ▁▃▅████████  │ │  0│ ▅█████████   │
- │ current=312.7   │ │ current=42.0%   │ │ current=75.0%   │
- ╰─────────────────╯ ╰─────────────────╯ ╰─────────────────╯
-  q Quit  r Refresh now
-```
+![vllm-monitor dashboard](docs/screenshot.svg)
+
+<sub>Regenerate with `python scripts/screenshot.py`.</sub>
 
 ## Features
 

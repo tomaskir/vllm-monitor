@@ -182,6 +182,22 @@ async def test_two_line_card_value_not_clipped():
     await app._poller.close()
 
 
+async def test_command_palette_is_outlined():
+    """The command palette is restyled into a bordered, centered popup."""
+    from textual.command import CommandPalette
+
+    app = _make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_command_palette()
+        for _ in range(3):
+            await pilot.pause()
+        assert isinstance(app.screen, CommandPalette)
+        assert app.screen.styles.align_horizontal == "center"
+        assert app.screen.query_one("Vertical").styles.border.top[0] == "round"
+    await app._poller.close()
+
+
 async def test_tick_survives_poll_error():
     """A failing poll/render must be swallowed so the dashboard keeps running."""
     app = _make_app()

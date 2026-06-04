@@ -9,7 +9,7 @@ from collections.abc import Callable
 from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Label, Static
 
@@ -194,19 +194,36 @@ class VllmMonitorApp(App):
     Screen {
         background: $surface;
     }
+    #header-panel {
+        height: 4;
+        border: round $accent;
+        border-title-align: left;
+        margin: 0 1;
+        padding: 0 1;
+    }
     #status-bar {
         height: 1;
-        padding: 0 1;
-        background: $panel;
         color: $text-muted;
     }
     #model-bar {
         height: 1;
-        padding: 0 1;
         color: $text-muted;
     }
     #body {
         height: 1fr;
+    }
+    /* Command palette → centered, outlined popup window */
+    CommandPalette {
+        align: center middle;
+    }
+    CommandPalette > Vertical {
+        margin-top: 0;
+        width: 70%;
+        max-width: 100;
+        height: auto;
+        max-height: 80%;
+        border: round $accent;
+        background: $surface;
     }
     .section {
         color: $accent;
@@ -239,8 +256,9 @@ class VllmMonitorApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Label("", id="status-bar")
-        yield Label("", id="model-bar")
+        with Container(id="header-panel"):
+            yield Label("", id="status-bar")
+            yield Label("", id="model-bar")
         with VerticalScroll(id="body"):
             yield Label("LOAD", classes="section")
             with Horizontal(id="load-row", classes="tile-row"):
@@ -289,9 +307,9 @@ class VllmMonitorApp(App):
     def _update_ui(self, m: VllmMetrics) -> None:
         status = self.query_one("#status-bar", Label)
         status.update(
-            f"{_status_color(m.server_reachable)}  "
-            f"[dim]{escape(self._poller.base_url)}[/dim]  "
-            f"[dim]interval={self._interval:.0f}s[/dim]"
+            f"{_status_color(m.server_reachable)}   "
+            f"[dim]{escape(self._poller.base_url)}[/dim]"
+            f"[dim]   ·   refresh {self._interval:.0f}s[/dim]"
         )
 
         self.query_one("#model-bar", Label).update(_model_bar_markup(m))

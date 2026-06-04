@@ -277,6 +277,7 @@ class VllmMonitorApp(App):
             with Horizontal(id="efficiency-row"):
                 yield MetricCard("card-spec", "Spec Accept (MTP)")
                 yield MetricCard("card-finished", "Completed")
+                yield MetricCard("card-avgreq", "Avg Req Tokens")
             with Horizontal(id="sparklines-row"):
                 yield SparklineCard("spark-running", "Active Requests (history)")
                 yield SparklineCard("spark-gentps", "Gen Tokens/s (history)")
@@ -334,6 +335,15 @@ class VllmMonitorApp(App):
             )
         else:
             self.query_one("#card-finished", MetricCard).update_value("[dim]—[/dim]")
+
+        # Average request shape: input (prompt) vs output (generation) tokens.
+        if m.avg_prompt_tokens > 0 or m.avg_generation_tokens > 0:
+            self.query_one("#card-avgreq", MetricCard).update_value(
+                f"[bold white]{_format_count(m.avg_prompt_tokens)} in[/bold white]\n"
+                f"[white]{_format_count(m.avg_generation_tokens)} out[/white]"
+            )
+        else:
+            self.query_one("#card-avgreq", MetricCard).update_value("[dim]—[/dim]")
 
         for card_id, key in (
             ("#card-latency", "e2e"),

@@ -114,6 +114,24 @@ def test_cache_config_absent_leaves_none():
     assert m.model_info.cache_dtype is None
 
 
+def test_avg_request_tokens():
+    # request_generation_tokens must not be confused with the decoy
+    # request_max_num_generation_tokens histogram.
+    text = (
+        'vllm:request_prompt_tokens_sum{model_name="m"} 10000.0\n'
+        'vllm:request_prompt_tokens_count{model_name="m"} 100.0\n'
+        'vllm:request_generation_tokens_sum{model_name="m"} 5000.0\n'
+        'vllm:request_generation_tokens_count{model_name="m"} 100.0\n'
+        'vllm:request_max_num_generation_tokens_sum{model_name="m"} 99999.0\n'
+        'vllm:request_max_num_generation_tokens_count{model_name="m"} 100.0\n'
+    )
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    m = VllmMetrics()
+    poller._parse_into(m, text)
+    assert m.avg_prompt_tokens == pytest.approx(100.0)
+    assert m.avg_generation_tokens == pytest.approx(50.0)  # not 999.99
+
+
 def test_preemptions_and_finish_reasons():
     text = (
         'vllm:num_preemptions_total{engine="0",model_name="m"} 5.0\n'

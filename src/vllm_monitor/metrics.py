@@ -58,6 +58,10 @@ class VllmMetrics:
     prompt_tokens_per_sec: float = 0.0
     generation_tokens_per_sec: float = 0.0
 
+    # Average per-request token counts (from request_*_tokens histograms)
+    avg_prompt_tokens: float = 0.0
+    avg_generation_tokens: float = 0.0
+
     # Cache
     gpu_cache_usage_perc: float = 0.0
     cpu_cache_usage_perc: float = 0.0
@@ -285,6 +289,16 @@ class MetricsPoller:
                 m.latency_sum[key] = hsum
                 m.latency_count[key] = hcount
                 m.latency_mean_s[key] = hsum / hcount
+
+        # Average per-request token counts (cumulative mean from the
+        # per-request histograms). Names are exact, so request_generation_tokens
+        # is not confused with request_max_num_generation_tokens.
+        psum, pcount = _hist_sum_count(raw, "vllm:request_prompt_tokens")
+        if pcount > 0:
+            m.avg_prompt_tokens = psum / pcount
+        gsum, gcount = _hist_sum_count(raw, "vllm:request_generation_tokens")
+        if gcount > 0:
+            m.avg_generation_tokens = gsum / gcount
 
         # GPU memory (absent on vLLM v1 — leaves the card showing "—").
         for k, v in raw.items():

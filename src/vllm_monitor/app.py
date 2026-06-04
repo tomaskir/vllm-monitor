@@ -200,6 +200,7 @@ class VllmMonitorApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.theme = "ansi-dark"
         self.set_interval(self._interval, self._tick)
         self.call_after_refresh(self._tick)
 

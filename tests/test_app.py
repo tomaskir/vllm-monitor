@@ -79,7 +79,6 @@ async def test_app_composes_and_ticks():
             "#card-gen-tps",
             "#card-gpu-cache",
             "#card-prefix-hit",
-            "#card-gpu-mem",
             "#card-ttft",
             "#card-tpot",
             "#card-queue",
@@ -105,7 +104,7 @@ async def test_rows_lay_out_side_by_side():
     expected = {
         "#model-row": 4,
         "#latency-row": 4,
-        "#metrics-row": 5,
+        "#metrics-row": 4,
         "#efficiency-row": 3,
         "#sparklines-row": 3,
     }

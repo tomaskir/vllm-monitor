@@ -8,9 +8,9 @@ Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-pr
 ├─────────────────┬─────────────────┬─────────────────┬─────────────────────────────┤
 │ Model Info      │ Running Req      │ Queued Req       │ Avg E2E Latency             │
 │ llama3          │       3          │       7          │       1600ms                │
-├─────────────────┼─────────────────┼─────────────────┼─────────────────┬───────────┤
-│ Prompt Tok/s    │ Gen Tok/s        │ GPU KV Cache     │ Prefix Hit       │ GPU Mem   │
-│    450.2        │    312.7         │   42.0%          │   75.0%          │  68.4%    │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────────────────┤
+│ Prompt Tok/s    │ Gen Tok/s        │ GPU KV Cache     │ Prefix Hit                  │
+│    450.2        │    312.7         │   42.0%          │   75.0%                     │
 ├─────────────────────────────┬─────────────────────────────┬───────────────────────────┤
 │ Active Requests (history)   │ Gen Tokens/s (history)      │ GPU Cache % (history)     │
 │  3│        ▁█▅▁             │ 312│        ▁█▅▁            │  42│       ▂▄▆█▆▄▂         │
@@ -25,9 +25,8 @@ Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-pr
 
 - **Real-time metrics**: requests/sec, active + queued requests, token throughput (prompt & generated)
 - **Cache stats**: GPU KV cache utilization, prefix cache hit rate
-- **GPU memory**: used vs total (when exposed by vLLM)
 - **Request history charts**: rolling 60-sample multi-row bar charts (with a y-axis scale) for active requests, token throughput, and cache usage
-- **Alert colors**: yellow at 80%, red at 90% for GPU cache and memory
+- **Alert colors**: yellow at 80%, red at 95% for GPU KV cache
 - **Model info panel**: loaded model name from `/v1/models`, or the `model_name` metric label when that endpoint requires auth
 - **Configurable poll interval** (default 2s)
 
@@ -73,7 +72,6 @@ VLLM_API_KEY=mytoken vllm-monitor
 | Gen Tokens/s | `vllm:generation_tokens_total` (rate) | Token generation throughput |
 | GPU KV Cache | `vllm:kv_cache_usage_perc` (falls back to `vllm:gpu_cache_usage_perc`) | KV cache block utilization |
 | Prefix Cache Hit | `vllm:prefix_cache_hits_total` / `vllm:prefix_cache_queries_total` | Prefix (radix) cache hit rate |
-| GPU Memory | `vllm:gpu_memory_*_bytes` (not exposed by the vLLM v1 engine — shows `—`) | GPU VRAM utilization |
 
 ## Requirements
 

@@ -79,10 +79,6 @@ class VllmMetrics:
     spec_acceptance_rate: float = 0.0  # percent (accepted / drafted tokens)
     spec_accept_length: float = 0.0  # accepted tokens per draft step
 
-    # GPU memory (filled from /metrics if available; absent on vLLM v1)
-    gpu_memory_used_bytes: float = 0.0
-    gpu_memory_total_bytes: float = 0.0
-
     # Latency histograms, keyed by short name (see LATENCY_HISTOGRAMS). Means
     # are recent (delta between polls) when possible, else cumulative.
     latency_sum: dict[str, float] = field(default_factory=dict)
@@ -308,13 +304,6 @@ class MetricsPoller:
         gsum, gcount = _hist_sum_count(raw, "vllm:request_generation_tokens")
         if gcount > 0:
             m.avg_generation_tokens = gsum / gcount
-
-        # GPU memory (absent on vLLM v1 — leaves the card showing "—").
-        for k, v in raw.items():
-            if "gpu_memory_used_bytes" in k:
-                m.gpu_memory_used_bytes = v
-            if "gpu_memory_total_bytes" in k:
-                m.gpu_memory_total_bytes = v
 
         # Model name fallback: when /v1/models is unauthorized, every metric
         # carries a model_name="..." label we can read instead.

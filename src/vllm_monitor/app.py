@@ -21,8 +21,6 @@ from .metrics import MetricsPoller, VllmMetrics, bar_chart
 CHART_HEIGHT = 5
 
 # Alert thresholds
-GPU_MEM_WARN = 80.0
-GPU_MEM_CRIT = 90.0
 GPU_CACHE_WARN = 80.0
 GPU_CACHE_CRIT = 95.0
 
@@ -273,7 +271,6 @@ class VllmMonitorApp(App):
                 yield MetricCard("card-gen-tps", "Gen Tokens/s")
                 yield MetricCard("card-gpu-cache", "GPU KV Cache")
                 yield MetricCard("card-prefix-hit", "Prefix Cache Hit")
-                yield MetricCard("card-gpu-mem", "GPU Memory")
             with Horizontal(id="efficiency-row"):
                 yield MetricCard("card-spec", "Spec Accept (MTP)")
                 yield MetricCard("card-finished", "Completed")
@@ -367,16 +364,6 @@ class VllmMonitorApp(App):
             )
         else:
             self.query_one("#card-spec", MetricCard).update_value("[dim]—[/dim]")
-
-        # GPU memory
-        if m.gpu_memory_total_bytes > 0:
-            gpu_pct = m.gpu_memory_used_bytes / m.gpu_memory_total_bytes * 100
-            used_gb = m.gpu_memory_used_bytes / 1e9
-            total_gb = m.gpu_memory_total_bytes / 1e9
-            gpu_markup = f"{_color_pct(gpu_pct, GPU_MEM_WARN, GPU_MEM_CRIT)}\n[dim]{used_gb:.1f}/{total_gb:.1f}GB[/dim]"
-        else:
-            gpu_markup = "[dim]—[/dim]"
-        self.query_one("#card-gpu-mem", MetricCard).update_value(gpu_markup)
 
         # Sparklines
         h = self._poller.history

@@ -6,7 +6,14 @@ from collections import deque
 
 import pytest
 
-from vllm_monitor.metrics import MetricsPoller, VllmMetrics, _parse_prometheus, bar_chart
+from vllm_monitor.metrics import (
+    MODEL_INFO_BACKOFF_MAX,
+    MetricsPoller,
+    ModelInfo,
+    VllmMetrics,
+    _parse_prometheus,
+    bar_chart,
+)
 
 # Mirrors the schema emitted by the vLLM v1 engine (engine/model labels,
 # kv_cache_usage_perc, prefix cache counters, no /v1/models needed for the name).
@@ -172,6 +179,41 @@ def test_spec_decode_absent_is_inactive():
     poller._parse_into(m, 'vllm:num_requests_running{model_name="m"} 1.0')
     assert m.spec_decode_active is False
     assert m.spec_acceptance_rate == 0.0
+
+
+async def test_model_info_fetched_once_on_success():
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    calls = []
+
+    async def fake_fetch():
+        calls.append(1)
+        return ModelInfo(model_id="m")
+
+    poller._fetch_model_info = fake_fetch
+    info = None
+    for i in range(5):
+        info = await poller._resolve_model_info(1000.0 + i)
+    assert len(calls) == 1  # cached after first success — no repeat /v1/models
+    assert info.model_id == "m"
+    await poller.close()
+
+
+async def test_model_info_backs_off_on_failure():
+    poller = MetricsPoller(base_url="http://localhost:8000", interval=2.0)
+    calls = []
+
+    async def fake_fetch():
+        calls.append(1)
+        return None  # simulate 401 / unauthorized
+
+    poller._fetch_model_info = fake_fetch
+    # Poll every 2s for 30 simulated seconds (16 polls).
+    for i in range(16):
+        assert await poller._resolve_model_info(1000.0 + i * 2.0) is None
+    # Without backoff that's 16 hits; backoff (4,8,16,...) cuts it to a handful.
+    assert len(calls) <= 5
+    assert poller._model_backoff <= MODEL_INFO_BACKOFF_MAX
+    await poller.close()
 
 
 def test_bar_chart_dimensions():

@@ -13,6 +13,10 @@ import httpx
 # Maximum history samples kept for sparkline
 HISTORY_SIZE = 60
 
+# Cap for the exponential backoff between /v1/models retries (seconds). Without
+# an API key that endpoint 401s, and retrying every poll spams the vLLM logs.
+MODEL_INFO_BACKOFF_MAX = 300.0
+
 # Latency histograms we surface, keyed by a short name. Each exposes a vLLM
 # `<name>_sum` / `<name>_count` pair from which we derive a mean. Any that the
 # server doesn't expose simply stay absent (the UI shows "—").
@@ -166,6 +170,11 @@ class MetricsPoller:
         self._prev_metrics: VllmMetrics | None = None
         self._prev_time: float = 0.0
         self.history = MetricsHistory()
+        # /v1/models: cached once it succeeds (model id is static); on failure
+        # we back off exponentially instead of hammering it every poll.
+        self._model_info: ModelInfo | None = None
+        self._model_retry_at: float = 0.0
+        self._model_backoff: float = 0.0
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -174,9 +183,12 @@ class MetricsPoller:
         m = VllmMetrics(timestamp=time.time())
         try:
             prom_text = await self._fetch_prometheus()
-            model_info = await self._fetch_model_info()
             m.server_reachable = True
-            m.model_info = model_info
+            info = await self._resolve_model_info(m.timestamp)
+            if info is not None:
+                m.model_info = info
+            # _parse_into still fills the model name from the metric label and
+            # adds cache config, so the panel works even without /v1/models.
             self._parse_into(m, prom_text)
             self._compute_rates(m)
         except Exception:
@@ -192,22 +204,41 @@ class MetricsPoller:
         resp.raise_for_status()
         return resp.text
 
-    async def _fetch_model_info(self) -> ModelInfo:
+    async def _resolve_model_info(self, now: float) -> ModelInfo | None:
+        """Return model info from /v1/models, with caching + backoff.
+
+        Fetched once on success (the served model id is static). On failure
+        (commonly a 401 when no API key is set) we retry with exponential
+        backoff capped at MODEL_INFO_BACKOFF_MAX, so we don't spam the server
+        with unauthorized requests every poll.
+        """
+        if self._model_info is not None:
+            return self._model_info
+        if now < self._model_retry_at:
+            return None
+        info = await self._fetch_model_info()
+        if info is not None:
+            self._model_info = info
+            self._model_backoff = 0.0
+            return info
+        self._model_backoff = min(
+            max(self._model_backoff * 2, self.interval * 2), MODEL_INFO_BACKOFF_MAX
+        )
+        self._model_retry_at = now + self._model_backoff
+        return None
+
+    async def _fetch_model_info(self) -> ModelInfo | None:
+        """One /v1/models request. Returns None on failure or empty data."""
         try:
             resp = await self._client.get(f"{self.base_url}/v1/models")
             resp.raise_for_status()
             data = resp.json()
             models = data.get("data", [])
             if models:
-                first = models[0]
-                info = ModelInfo(model_id=first.get("id", "unknown"))
-                perms = first.get("permission", [{}])
-                if perms:
-                    pass  # vLLM doesn't always expose context_length here
-                return info
+                return ModelInfo(model_id=models[0].get("id", "unknown"))
         except Exception:
-            pass
-        return ModelInfo()
+            return None
+        return None
 
     def _parse_into(self, m: VllmMetrics, text: str) -> None:
         raw = _parse_prometheus(text)

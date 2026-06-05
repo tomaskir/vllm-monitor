@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-06-05
+
+### Fixed
+- A manual refresh (`r`) landing mid-poll no longer starts an overlapping
+  request, which could add a stray history sample and a spurious rate spike.
+- The HTTP client is now closed on exit.
+
+### Changed
+- Faster `/metrics` parsing (single pass instead of repeated dict rescans).
+
 ## [1.0.1] - 2026-06-05
 
 ### Fixed
@@ -75,6 +85,7 @@ current vLLM servers.
 - Robustness — drop non-finite (NaN/Inf) metric values, escape server-provided
   markup, and guard the refresh loop against a single bad sample.
 
+[1.0.2]: https://github.com/tomaskir/vllm-monitor/releases/tag/v1.0.2
 [1.0.1]: https://github.com/tomaskir/vllm-monitor/releases/tag/v1.0.1
 [1.0.0]: https://github.com/tomaskir/vllm-monitor/releases/tag/v1.0.0
 [0.2.0]: https://github.com/tomaskir/vllm-monitor/releases/tag/v0.2.0

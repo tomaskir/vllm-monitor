@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-06-05
+
+### Fixed
+- History chart y-axis "max" could stay pinned to a stale value. The axis peak
+  was computed over the full history deque while the bars only render the last
+  `chart_w` samples, so a spike that scrolled off the visible chart kept
+  inflating the label until it aged out. The axis now scales to the same visible
+  window the bars draw. The sparkline render logic was extracted into a
+  unit-tested `render_spark` helper in `metrics.py`.
+
 ## [1.0.0] - 2026-06-04
 
 First stable release. Builds on 0.2.0 with a much richer metric set, a
@@ -65,5 +75,6 @@ current vLLM servers.
 - Robustness — drop non-finite (NaN/Inf) metric values, escape server-provided
   markup, and guard the refresh loop against a single bad sample.
 
+[1.0.1]: https://github.com/tomaskir/vllm-monitor/releases/tag/v1.0.1
 [1.0.0]: https://github.com/tomaskir/vllm-monitor/releases/tag/v1.0.0
 [0.2.0]: https://github.com/tomaskir/vllm-monitor/releases/tag/v0.2.0

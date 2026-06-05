@@ -150,13 +150,20 @@ class SparklineCard(Static):
         `fmt` formats the axis numbers (peak at top, 0 at bottom); `caption`
         is the line shown beneath the chart (e.g. the current value).
         """
-        finite = [v for v in values if math.isfinite(v)]
-        peak = max(finite) if finite else 0.0
-        top = fmt(peak)
-        gutter = max(len(top), 1)
+        # The axis peak must reflect the same window bar_chart renders, not the
+        # whole deque — otherwise a spike that has scrolled off the visible chart
+        # keeps inflating the "max" label until it ages out of HISTORY_SIZE.
+        # Compute the chart width first (using a provisional gutter), then derive
+        # the peak from that trailing slice.
+        finite_all = [v for v in values if math.isfinite(v)]
+        provisional = fmt(max(finite_all) if finite_all else 0.0)
+        gutter = max(len(provisional), 1)
         # Fit the chart to the card's content width, leaving room for the axis.
         avail = max(self.content_size.width, gutter + 9)
         chart_w = max(8, avail - gutter - 1)
+        window = [v for v in list(values)[-chart_w:] if math.isfinite(v)]
+        peak = max(window) if window else 0.0
+        top = fmt(peak)
         rows = bar_chart(values, chart_w, CHART_HEIGHT)
         lines = []
         for i, row in enumerate(rows):

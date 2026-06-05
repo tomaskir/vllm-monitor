@@ -8,6 +8,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cache
 
 import httpx
 
@@ -23,6 +24,16 @@ LATENCY_HISTOGRAMS = {
     "tpot": "vllm:request_time_per_output_token_seconds",
     "queue": "vllm:request_queue_time_seconds",
 }
+
+# Per-request token histograms whose cumulative mean lands on a VllmMetrics field.
+_TOKEN_HISTOGRAMS = {
+    "vllm:request_prompt_tokens": "avg_prompt_tokens",
+    "vllm:request_generation_tokens": "avg_generation_tokens",
+}
+# Histogram base name → short latency key (inverse of LATENCY_HISTOGRAMS).
+_LATENCY_BY_METRIC = {name: key for key, name in LATENCY_HISTOGRAMS.items()}
+# Every histogram base we accumulate _sum/_count for in the single parse pass.
+_HIST_BASES = frozenset(_LATENCY_BY_METRIC) | frozenset(_TOKEN_HISTOGRAMS)
 
 
 @dataclass
@@ -142,25 +153,24 @@ def _get_gauge(raw: dict[str, float], *keys: str) -> float:
     return 0.0
 
 
-def _hist_sum_count(raw: dict[str, float], name: str) -> tuple[float, float]:
-    """Sum a histogram's _sum and _count series across all label sets."""
-    total_sum = 0.0
-    total_count = 0.0
-    for k, v in raw.items():
-        if f"{name}_sum" in k:
-            total_sum += v
-        elif f"{name}_count" in k:
-            total_count += v
-    return total_sum, total_count
+_LABEL_RE = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="([^"]*)"')
+
+
+def _parse_labels(key: str) -> dict[str, str]:
+    """Parse the ``{name="v",...}`` label set of a single metric key into a dict."""
+    return dict(_LABEL_RE.findall(key))
+
+
+@cache
+def _label_pattern(label: str) -> re.Pattern[str]:
+    # Anchored on a label boundary ({ or ,) so e.g. ``block_size`` does not
+    # match inside ``hash_block_size``. Cached so it compiles once per label.
+    return re.compile(r'[{,]' + re.escape(label) + r'="([^"]*)"')
 
 
 def _extract_label(raw: dict[str, float], label: str) -> str | None:
-    """Return the first value of `label` found across all metric keys.
-
-    Anchored on a label boundary ({ or ,) so e.g. ``block_size`` does not
-    match inside ``hash_block_size``.
-    """
-    pat = re.compile(r'[{,]' + re.escape(label) + r'="([^"]*)"')
+    """Return the first value of `label` found across all metric keys."""
+    pat = _label_pattern(label)
     for key in raw:
         m = pat.search(key)
         if m and m.group(1):
@@ -213,8 +223,10 @@ class MetricsPoller:
         m.num_requests_waiting = _get_gauge(raw, "vllm:num_requests_waiting")
         m.num_requests_swapped = _get_gauge(raw, "vllm:num_requests_swapped")
 
-        # Sum across all model labels for token / counter totals.
-        # Exclude derived breakdowns (e.g. *_by_source_total) that would double-count.
+        # Single pass over every series: sum counters across label sets and
+        # accumulate histogram _sum/_count. Derived breakdowns (e.g.
+        # *_by_source_total) are excluded by matching exact base names so they
+        # aren't double-counted; histogram _bucket lines fall through untouched.
         prompt_total = 0.0
         gen_total = 0.0
         success_total = 0.0
@@ -226,6 +238,9 @@ class MetricsPoller:
         spec_present = False
         preemptions = 0.0
         finished: dict[str, float] = {}
+        hist_sum: dict[str, float] = {}
+        hist_count: dict[str, float] = {}
+        cache_info_key: str | None = None
         for k, v in raw.items():
             name = k.split("{", 1)[0]
             if name == "vllm:prompt_tokens_total":
@@ -250,6 +265,16 @@ class MetricsPoller:
                 spec_accepted += v
             elif name == "vllm:spec_decode_num_drafts_total":
                 spec_drafts += v
+            elif name == "vllm:cache_config_info":
+                cache_info_key = k
+            elif name.endswith("_sum"):
+                base = name[:-4]
+                if base in _HIST_BASES:
+                    hist_sum[base] = hist_sum.get(base, 0.0) + v
+            elif name.endswith("_count"):
+                base = name[:-6]
+                if base in _HIST_BASES:
+                    hist_count[base] = hist_count.get(base, 0.0) + v
         m.prompt_tokens_total = prompt_total
         m.generation_tokens_total = gen_total
         m.request_success_total = success_total
@@ -284,22 +309,21 @@ class MetricsPoller:
 
         # Latency histograms — keep raw sum/count; recent means derived in
         # _compute_rates. Absent histograms simply never get a key.
-        for key, name in LATENCY_HISTOGRAMS.items():
-            hsum, hcount = _hist_sum_count(raw, name)
+        for name, key in _LATENCY_BY_METRIC.items():
+            hcount = hist_count.get(name, 0.0)
             if hcount > 0:
+                hsum = hist_sum.get(name, 0.0)
                 m.latency_sum[key] = hsum
                 m.latency_count[key] = hcount
                 m.latency_mean_s[key] = hsum / hcount
 
         # Average per-request token counts (cumulative mean from the
-        # per-request histograms). Names are exact, so request_generation_tokens
+        # per-request histograms). Bases are exact, so request_generation_tokens
         # is not confused with request_max_num_generation_tokens.
-        psum, pcount = _hist_sum_count(raw, "vllm:request_prompt_tokens")
-        if pcount > 0:
-            m.avg_prompt_tokens = psum / pcount
-        gsum, gcount = _hist_sum_count(raw, "vllm:request_generation_tokens")
-        if gcount > 0:
-            m.avg_generation_tokens = gsum / gcount
+        for name, attr in _TOKEN_HISTOGRAMS.items():
+            hcount = hist_count.get(name, 0.0)
+            if hcount > 0:
+                setattr(m, attr, hist_sum.get(name, 0.0) / hcount)
 
         # Model name: read it from the model_name label every poll (always
         # current, no auth), so a model change after a restart is picked up.
@@ -309,22 +333,24 @@ class MetricsPoller:
             if label_model:
                 info.model_id = label_model
 
-        # Enrich from vllm:cache_config_info labels (absent → stays None).
-        blocks = _extract_label(raw, "num_gpu_blocks")
-        if blocks and blocks.isdigit():
-            info.num_gpu_blocks = int(blocks)
-        block_size = _extract_label(raw, "block_size")
-        if block_size and block_size.isdigit():
-            info.block_size = int(block_size)
-        util = _extract_label(raw, "gpu_memory_utilization")
-        if util:
-            try:
-                info.gpu_memory_utilization = float(util)
-            except ValueError:
-                pass
-        dtype = _extract_label(raw, "cache_dtype")
-        if dtype and dtype != "None":
-            info.cache_dtype = dtype
+        # Enrich from the single vllm:cache_config_info series (absent → None).
+        if cache_info_key:
+            labels = _parse_labels(cache_info_key)
+            blocks = labels.get("num_gpu_blocks")
+            if blocks and blocks.isdigit():
+                info.num_gpu_blocks = int(blocks)
+            block_size = labels.get("block_size")
+            if block_size and block_size.isdigit():
+                info.block_size = int(block_size)
+            util = labels.get("gpu_memory_utilization")
+            if util:
+                try:
+                    info.gpu_memory_utilization = float(util)
+                except ValueError:
+                    pass
+            dtype = labels.get("cache_dtype")
+            if dtype and dtype != "None":
+                info.cache_dtype = dtype
 
     def _compute_rates(self, current: VllmMetrics) -> None:
         prev = self._prev_metrics

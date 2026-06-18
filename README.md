@@ -36,23 +36,21 @@ pip install git+https://github.com/tomaskir/vllm-monitor
 A prebuilt image is published to GitHub Container Registry on every release
 (tags: `latest`, `X.Y.Z`, `X.Y`). vllm-monitor is a **client** — it connects
 out to a vLLM server and renders a terminal UI, so run it with `-it` (a TTY)
-and point it at your server. It serves no ports.
+and `--log-driver none` (see [Why disable container logging](#why-disable-container-logging)).
+It serves no ports.
 
 ```bash
 # Pull the latest release
 docker pull ghcr.io/tomaskir/vllm-monitor:latest
 
 # Monitor a remote vLLM server
-docker run --rm -it ghcr.io/tomaskir/vllm-monitor --url http://10.0.0.5:8000
+docker run --rm -it --log-driver none ghcr.io/tomaskir/vllm-monitor --url http://10.0.0.5:8000
 
 # Monitor vLLM on the same host (Linux): share the host network
-docker run --rm -it --network host ghcr.io/tomaskir/vllm-monitor --url http://localhost:8000
-
-# macOS / Windows: reach the host via host.docker.internal
-docker run --rm -it ghcr.io/tomaskir/vllm-monitor --url http://host.docker.internal:8000
+docker run --rm -it --log-driver none --network host ghcr.io/tomaskir/vllm-monitor --url http://localhost:8000
 
 # Configure entirely via environment variables
-docker run --rm -it \
+docker run --rm -it --log-driver none \
   -e VLLM_URL=http://10.0.0.5:8000 \
   -e VLLM_API_KEY=mytoken \
   -e VLLM_MONITOR_INTERVAL=1 \
@@ -69,10 +67,31 @@ Build it yourself:
 
 ```bash
 docker build -t vllm-monitor .
-docker run --rm -it vllm-monitor --url http://10.0.0.5:8000
+docker run --rm -it --log-driver none vllm-monitor --url http://10.0.0.5:8000
 ```
 
 > `-it` is required — without a TTY the TUI cannot render. `--rm` removes the container on exit.
+
+### Why disable container logging?
+
+`--log-driver none` is on every command above for a reason — and it's not
+something the app can fix. `-it` allocates a TTY but does **not** stop Docker
+from logging: the default `json-file` driver records everything the container's
+main process writes to `…-json.log`, and with a TTY attached that stream *is*
+the TUI's raw output — a non-stop flood of screen-repaint escape sequences
+(~1 GB/day). `--rm` only reclaims the file when the container *exits*, so a
+dashboard left running for weeks can quietly grow a multi-gigabyte log.
+
+A terminal UI has no choice but to emit those sequences to draw itself, and the
+stream you watch and the stream Docker records are the same pty — so there is no
+application-side fix. Since you read this dashboard live and never need its
+output persisted, the honest answer is to tell Docker to drop it with
+`--log-driver none`.
+
+If you do want to keep logs, cap them with rotation instead —
+`--log-opt max-size=10m --log-opt max-file=3` — or set the same `log-opts`
+under `log-driver: json-file` in `/etc/docker/daemon.json` (then restart the
+daemon) to protect every container on the host.
 
 ## Usage
 

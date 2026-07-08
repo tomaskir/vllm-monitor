@@ -2,7 +2,7 @@
 
 Real-time terminal UI dashboard for monitoring [vLLM](https://github.com/vllm-project/vllm) server metrics. No Grafana required.
 
-![vllm-monitor dashboard](docs/screenshot.svg)
+![vllm-monitor dashboard](docs/preview.png)
 
 ## Features
 
@@ -153,7 +153,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Regenerate the README screenshot with `python scripts/screenshot.py`.
+Regenerate the README screenshot with `python scripts/screenshot.py` (saves to `docs/preview.png`).
 
 ## Acknowledgments
 

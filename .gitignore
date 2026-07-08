@@ -27,5 +27,6 @@ uv.lock
 .DS_Store
 
 # Claude Code local dirs
-.claude-home/
+.claude
+*claude-code/
 claude/

@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-Guidance for working in this repository.
-
 ## What this is
 
 `vllm-monitor` is a real-time terminal UI dashboard for monitoring a [vLLM](https://github.com/vllm-project/vllm) server. It polls the server's Prometheus `/metrics` endpoint and `/v1/models`, then renders live request, throughput, cache, and GPU-memory stats — plus rolling sparklines — in a [Textual](https://textual.textualize.io/) TUI. The goal is a zero-Grafana, single-command health view of a running vLLM instance.

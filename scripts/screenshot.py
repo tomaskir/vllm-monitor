@@ -1,4 +1,7 @@
-"""Render a populated dashboard to docs/screenshot.svg for the README.
+"""Render a populated dashboard SVG for the README screenshot.
+
+Outputs docs/screenshot.svg. Convert it to PNG (e.g. open in a browser
+and screenshot the element) and save as docs/preview.png for the README.
 
 Run from the repo root:  python scripts/screenshot.py
 Uses synthetic demo data (no live server needed, no real URL/IP embedded).

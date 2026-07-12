@@ -357,8 +357,8 @@ class VllmMonitorApp(App):
             self.query_one("#card-avgreq", MetricCard).update_value(
                 f"[bold white]{_format_count(m.avg_prompt_tokens)} in[/bold white] · "
                 f"[white]{_format_count(m.avg_generation_tokens)} out[/white]\n"
-                f"[bold white]{m.avg_gen_tokens_per_sec:.1f} avg gen tok/s[/bold white] · "
-                f"[bold white]{_format_duration(e2e)} avg E2E[/bold white]"
+                f"[bold white]{m.avg_gen_tokens_per_sec:.1f} tok/s[/bold white] · "
+                f"[bold white]{_format_duration(e2e)} E2E[/bold white]"
             )
         else:
             self.query_one("#card-avgreq", MetricCard).update_value("[dim]—[/dim]")

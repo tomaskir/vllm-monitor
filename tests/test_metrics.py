@@ -10,6 +10,7 @@ from vllm_monitor.metrics import (
     MetricsPoller,
     VllmMetrics,
     _parse_prometheus,
+    _style_bar_row,
     bar_chart,
     render_spark,
 )
@@ -270,6 +271,25 @@ def test_render_spark_axis_tracks_visible_window():
     axis = lines[0].split("│")[0]
     assert axis.strip() == "2"  # visible-window peak, not the off-screen 100
     assert len(axis) == 3  # gutter still sized to full-history peak ("100") → no jitter
+
+
+def test_style_bar_row_fills_cells_with_background_only():
+    # Every filled cell becomes a background-colored space (seamless rect in the
+    # SVG export); a run collapses into one span. Cells at least half full round
+    # up (▅ = 5/8), cells under half round down to empty (▃ = 3/8). No
+    # foreground block glyphs survive — they'd seam/tofu in a browser.
+    styled = _style_bar_row("██▅▃ ", fill="$success")
+    assert styled == "[on $success]   [/]  "  # ██▅ → 3-cell bg run, ▃+space → blank
+    assert not any(b in styled for b in "▁▂▃▄▅▆▇█")
+
+
+def test_render_spark_bars_carry_fill_markup():
+    lines = render_spark(
+        deque([1.0, 2.0, 3.0], maxlen=60), content_width=30, fmt=lambda v: f"{v:.0f}", height=4
+    )
+    bars = "".join(ln.split("│", 1)[1] for ln in lines)
+    assert "[on $success]" in bars  # solid body painted via background
+    assert "█" not in bars  # foreground full-blocks replaced
 
 
 def test_render_spark_all_zero_axis():

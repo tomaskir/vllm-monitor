@@ -436,15 +436,57 @@ def bar_chart(values: deque[float], width: int = 20, height: int = 4) -> list[st
     return ["".join(row) for row in grid]
 
 
+_BLOCKS = " ▁▂▃▄▅▆▇█"  # index == number of eighths filled (see bar_chart)
+
+
+def _style_bar_row(row: str, fill: str) -> str:
+    """Wrap a bar row in Textual markup so it renders as a solid fill.
+
+    Every filled cell becomes a background-colored space rather than a
+    foreground block glyph. Textual exports a run of same-background cells as a
+    single ``<rect>`` (with ``shape-rendering="crispEdges"``), so the fill
+    tiles seamlessly in *any* SVG renderer. Foreground block glyphs can't:
+    the export uses a 20px font on a 24.4px line, so a ``█`` glyph leaves a
+    ~4px gap below it (a broken-grid seam), and a partial eighth-block leaves
+    the same gap between its crest and the bar body — plus it renders as tofu
+    in browsers whose fallback monospace lacks the block characters. So we snap
+    each cell to full-or-empty (half-cell-or-more rounds up) and emit no
+    foreground glyphs at all; the chart loses sub-cell smoothing but renders
+    identically everywhere.
+    """
+    out: list[str] = []
+    run = 0  # consecutive filled cells pending a flush
+
+    def flush() -> None:
+        nonlocal run
+        if run:
+            out.append(f"[on {fill}]{' ' * run}[/]")
+            run = 0
+
+    for ch in row:
+        # Round a cell up to a full block when it's at least half filled.
+        if ch == "█" or _BLOCKS.find(ch) >= 4:
+            run += 1
+        else:
+            flush()
+            out.append(" ")
+    flush()
+    return "".join(out)
+
+
 def render_spark(
     values: deque[float],
     content_width: int,
     fmt: Callable[[float], str],
     height: int,
+    fill: str = "$success",
 ) -> list[str]:
     """Render a labeled bar chart; each line is ``"<axis>│<bars>"``.
 
     `fmt` formats the axis numbers (peak at the top row, ``0`` at the bottom).
+    `fill` is the Textual color (name, hex, or ``$variable``) the bars are
+    painted with; the bar cells carry inline markup so they export as solid
+    rects (see `_style_bar_row`).
 
     The y-axis peak is derived from the same trailing window ``bar_chart``
     draws (the last ``chart_w`` samples), *not* the whole deque — otherwise a
@@ -470,5 +512,5 @@ def render_spark(
             axis = "0".rjust(gutter)
         else:
             axis = " " * gutter
-        lines.append(f"{axis}│{row}")
+        lines.append(f"{axis}│{_style_bar_row(row, fill)}")
     return lines

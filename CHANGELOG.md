@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-07-12
+
+### Added
+- The **Average Request** card (formerly *Avg Req Tokens*) now also shows the
+  running average generation throughput (`tok/s`) and mean end-to-end latency,
+  alongside the mean prompt/generation token counts. The running average counts
+  only ticks with real traffic, so idle periods and polling-interval changes
+  don't distort it. (#1)
+
 ## [1.0.2] - 2026-06-05
 
 ### Fixed

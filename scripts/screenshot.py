@@ -53,6 +53,7 @@ def _demo_metrics() -> VllmMetrics:
     m.generation_tokens_total = 510_000
     m.avg_prompt_tokens = 13_900
     m.avg_generation_tokens = 500
+    m.avg_gen_tokens_per_sec = 838.0
     return m
 
 

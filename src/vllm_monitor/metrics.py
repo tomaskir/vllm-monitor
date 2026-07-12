@@ -69,6 +69,9 @@ class VllmMetrics:
     prompt_tokens_per_sec: float = 0.0
     generation_tokens_per_sec: float = 0.0
 
+    # Running average generation-token throughput since monitoring started
+    avg_gen_tokens_per_sec: float = 0.0
+
     # Average per-request token counts (from request_*_tokens histograms)
     avg_prompt_tokens: float = 0.0
     avg_generation_tokens: float = 0.0
@@ -188,6 +191,12 @@ class MetricsPoller:
         self._client = httpx.AsyncClient(headers=headers, timeout=5.0)
         self._prev_metrics: VllmMetrics | None = None
         self.history = MetricsHistory()
+        # Cumulative token/time accumulators for average throughput.
+        # Only ticks with actual traffic contribute, so idle periods
+        # and polling-frequency changes don't distort the average.
+        self._cumul_tokens: float = 0.0
+        self._cumul_seconds: float = 0.0
+        self._last_avg_tps: float = 0.0
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -202,9 +211,11 @@ class MetricsPoller:
             # reflected on the next poll, with no /v1/models request spam.
             self._parse_into(m, prom_text)
             self._compute_rates(m)
+            self._update_avg_tps(m)
         except Exception:
             m.server_reachable = False
 
+        m.avg_gen_tokens_per_sec = self._last_avg_tps
         self._update_history(m)
         self._prev_metrics = m
         return m
@@ -376,6 +387,29 @@ class MetricsPoller:
         self.history.requests_running.append(m.num_requests_running)
         self.history.generation_tps.append(m.generation_tokens_per_sec)
         self.history.gpu_cache.append(m.gpu_cache_usage_perc)
+
+    def _update_avg_tps(self, current: VllmMetrics) -> None:
+        """Update running average generation throughput from per-tick deltas.
+
+        Only ticks where new generation tokens were processed contribute to
+        the cumulative time, so idle periods and polling-frequency changes
+        don't distort the average. A system clock jump that produces a
+        non-positive dt is silently skipped (the average stalls until a
+        future tick with a valid dt).
+        """
+        prev = self._prev_metrics
+        if prev is None or not prev.server_reachable:
+            return
+        dt = current.timestamp - prev.timestamp
+        if dt <= 0:
+            return
+        
+        dt_gen = current.generation_tokens_total - prev.generation_tokens_total
+        if dt_gen > 0:
+            self._cumul_tokens += dt_gen
+            self._cumul_seconds += dt
+            if self._cumul_seconds > 0:
+                self._last_avg_tps = self._cumul_tokens / self._cumul_seconds
 
 
 def bar_chart(values: deque[float], width: int = 20, height: int = 4) -> list[str]:

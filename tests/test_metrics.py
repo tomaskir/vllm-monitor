@@ -279,3 +279,182 @@ def test_render_spark_all_zero_axis():
     )
     assert lines[0].split("│")[0].strip() == "0"
     assert lines[-1].split("│")[0].strip() == "0"
+
+
+def _run_avg_tps(poller: MetricsPoller, current: VllmMetrics) -> None:
+    """Run the real _update_avg_tps method and assign the result."""
+    poller._update_avg_tps(current)
+    current.avg_gen_tokens_per_sec = poller._last_avg_tps
+
+
+def test_avg_tps_first_poll_no_prev():
+    """First poll: _prev_metrics is None → avg stays 0.0."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    m = VllmMetrics(
+        timestamp=10.0, server_reachable=True,
+        prompt_tokens_total=1000.0, generation_tokens_total=5000.0,
+    )
+    _run_avg_tps(poller, m)
+    assert m.avg_gen_tokens_per_sec == 0.0
+    assert poller._cumul_tokens == 0.0
+    assert poller._cumul_seconds == 0.0
+
+
+def test_avg_tps_single_active_tick():
+    """One active tick → avg = gen_delta / dt."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=0.0, server_reachable=True,
+        prompt_tokens_total=500.0, generation_tokens_total=1000.0,
+    )
+    m = VllmMetrics(
+        timestamp=2.0, server_reachable=True,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    _run_avg_tps(poller, m)
+    # gen delta = 1200-1000 = 200, dt = 2.0 → 100 tok/s
+    assert m.avg_gen_tokens_per_sec == pytest.approx(100.0)
+    assert poller._cumul_tokens == 200.0
+    assert poller._cumul_seconds == 2.0
+
+
+def test_avg_tps_idle_tick_no_change():
+    """Idle tick (no new gen tokens) → avg unchanged, accumulators unchanged."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=2.0, server_reachable=True,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    # First an active tick to establish a baseline avg
+    poller._cumul_tokens = 200.0
+    poller._cumul_seconds = 2.0
+    poller._last_avg_tps = 100.0
+
+    # Now an idle tick: same gen tokens (prompt may change but that's ignored)
+    m = VllmMetrics(
+        timestamp=4.0, server_reachable=True,
+        prompt_tokens_total=700.0, generation_tokens_total=1200.0,
+    )
+    _run_avg_tps(poller, m)
+    assert m.avg_gen_tokens_per_sec == pytest.approx(100.0)
+    assert poller._cumul_tokens == 200.0
+    assert poller._cumul_seconds == 2.0
+
+
+def test_avg_tps_active_then_idle_then_active():
+    """Active → idle → active: idle doesn't dilute, second burst is added."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=2.0, server_reachable=True,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    # Active tick 1
+    m1 = VllmMetrics(
+        timestamp=4.0, server_reachable=True,
+        prompt_tokens_total=700.0, generation_tokens_total=1500.0,
+    )
+    _run_avg_tps(poller, m1)
+    # gen delta = 1500-1200 = 300, dt = 2.0 → 150 tok/s
+    assert m1.avg_gen_tokens_per_sec == pytest.approx(150.0)
+
+    # Advance prev to m1 for the next tick
+    poller._prev_metrics = m1
+
+    # Idle tick: no new gen tokens (prompt increased but that's ignored)
+    m_idle = VllmMetrics(
+        timestamp=6.0, server_reachable=True,
+        prompt_tokens_total=800.0, generation_tokens_total=1500.0,
+    )
+    _run_avg_tps(poller, m_idle)
+    assert m_idle.avg_gen_tokens_per_sec == pytest.approx(150.0)  # unchanged
+
+    # Advance prev
+    poller._prev_metrics = m_idle
+
+    # Active tick 2: more gen tokens arrive
+    m2 = VllmMetrics(
+        timestamp=8.0, server_reachable=True,
+        prompt_tokens_total=900.0, generation_tokens_total=1800.0,
+    )
+    _run_avg_tps(poller, m2)
+    # cumulative gen delta = 300 + (1800-1500) = 300+300 = 600
+    # cumulative seconds = 2.0 + 2.0 = 4.0 (idle tick not counted)
+    # avg = 600/4.0 = 150.0
+    assert m2.avg_gen_tokens_per_sec == pytest.approx(150.0)
+    assert poller._cumul_tokens == 600.0
+    assert poller._cumul_seconds == 4.0
+
+
+def test_avg_tps_varying_interval():
+    """Ticks with different dt are weighted by their actual duration."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=0.0, server_reachable=True,
+        prompt_tokens_total=0.0, generation_tokens_total=0.0,
+    )
+    # Tick 1: dt=1.0, 100 gen tokens
+    m1 = VllmMetrics(
+        timestamp=1.0, server_reachable=True,
+        prompt_tokens_total=50.0, generation_tokens_total=100.0,
+    )
+    _run_avg_tps(poller, m1)
+    assert m1.avg_gen_tokens_per_sec == pytest.approx(100.0)
+
+    poller._prev_metrics = m1
+
+    # Tick 2: dt=3.0, 300 gen tokens (different interval)
+    m2 = VllmMetrics(
+        timestamp=4.0, server_reachable=True,
+        prompt_tokens_total=200.0, generation_tokens_total=400.0,
+    )
+    _run_avg_tps(poller, m2)
+    # cumulative gen delta = 100 + 300 = 400
+    # cumulative seconds = 1.0 + 3.0 = 4.0
+    # avg = 400/4.0 = 100.0
+    assert m2.avg_gen_tokens_per_sec == pytest.approx(100.0)
+    assert poller._cumul_seconds == 4.0
+
+
+def test_avg_tps_server_down_does_not_corrupt():
+    """Unreachable tick → accumulators unchanged, avg carries forward."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=2.0, server_reachable=True,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    poller._cumul_tokens = 200.0
+    poller._cumul_seconds = 2.0
+    poller._last_avg_tps = 100.0
+
+    # Server unreachable: server_reachable=False
+    m = VllmMetrics(
+        timestamp=4.0, server_reachable=False,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    _run_avg_tps(poller, m)
+    # prev is reachable but current is not → condition fails → avg unchanged
+    assert m.avg_gen_tokens_per_sec == pytest.approx(100.0)
+    assert poller._cumul_tokens == 200.0
+    assert poller._cumul_seconds == 2.0
+
+
+def test_avg_tps_prev_unreachable_skips():
+    """Previous poll was unreachable → skip avg computation (no baseline)."""
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=2.0, server_reachable=False,
+        prompt_tokens_total=600.0, generation_tokens_total=1200.0,
+    )
+    poller._cumul_tokens = 200.0
+    poller._cumul_seconds = 2.0
+    poller._last_avg_tps = 100.0
+
+    m = VllmMetrics(
+        timestamp=4.0, server_reachable=True,
+        prompt_tokens_total=800.0, generation_tokens_total=1600.0,
+    )
+    _run_avg_tps(poller, m)
+    # prev.server_reachable is False → condition fails
+    assert m.avg_gen_tokens_per_sec == pytest.approx(100.0)
+    assert poller._cumul_tokens == 200.0
+    assert poller._cumul_seconds == 2.0

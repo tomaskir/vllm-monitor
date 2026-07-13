@@ -37,7 +37,7 @@ mypy src/                       # type-check (deps declared but no config block)
 vllm-monitor --url http://localhost:8000 --interval 2   # run against a server
 ```
 
-There is currently no CI; run `ruff check` and `pytest` locally before pushing. The package targets Python 3.10/3.11/3.12. The local default branch is `master`.
+CI (`.github/workflows/docker.yml`) only builds the Docker image on every push/PR and publishes it to GHCR on `v*` tags (`{version}`, `{major}.{minor}`, `latest`) — it does *not* run tests or lint, so run `ruff check` and `pytest` locally before pushing. The package targets Python 3.10/3.11/3.12. The local default branch is `master`.
 
 ## Conventions
 

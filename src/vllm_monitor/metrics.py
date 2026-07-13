@@ -75,6 +75,11 @@ class VllmMetrics:
     # Average per-request token counts (from request_*_tokens histograms)
     avg_prompt_tokens: float = 0.0
     avg_generation_tokens: float = 0.0
+    # Cumulative mean E2E latency per request (all-time sum/count from the
+    # e2e_request_latency histogram). Distinct from latency_mean_s["e2e"],
+    # which _compute_rates overwrites with the recent windowed mean for the
+    # live E2E Latency card.
+    avg_e2e_latency_s: float = 0.0
 
     # Cache
     gpu_cache_usage_perc: float = 0.0
@@ -322,9 +327,12 @@ class MetricsPoller:
             hcount = hist_count.get(name, 0.0)
             if hcount > 0:
                 hsum = hist_sum.get(name, 0.0)
+                mean = hsum / hcount
                 m.latency_sum[key] = hsum
                 m.latency_count[key] = hcount
-                m.latency_mean_s[key] = hsum / hcount
+                m.latency_mean_s[key] = mean
+                if key == "e2e":
+                    m.avg_e2e_latency_s = mean
 
         # Average per-request token counts (cumulative mean from the
         # per-request histograms). Bases are exact, so request_generation_tokens

@@ -352,13 +352,16 @@ class VllmMonitorApp(App):
             self.query_one("#card-finished", MetricCard).update_value("[dim]—[/dim]")
 
         # Average request stats: token counts, throughput, and E2E latency.
-        e2e = m.latency_mean_s.get("e2e", 0.0)
-        if m.avg_prompt_tokens > 0 or m.avg_generation_tokens > 0 or e2e > 0:
+        # E2E here is the cumulative per-request mean (all-time sum/count), to
+        # match the avg in/out token figures; the live E2E Latency card below
+        # shows the recent windowed mean instead.
+        avg_e2e = m.avg_e2e_latency_s
+        if m.avg_prompt_tokens > 0 or m.avg_generation_tokens > 0 or avg_e2e > 0:
             self.query_one("#card-avgreq", MetricCard).update_value(
                 f"[bold white]{_format_count(m.avg_prompt_tokens)} in[/bold white] · "
                 f"[white]{_format_count(m.avg_generation_tokens)} out[/white]\n"
                 f"[bold white]{m.avg_gen_tokens_per_sec:.1f} tok/s[/bold white] · "
-                f"[bold white]{_format_duration(e2e)} E2E[/bold white]"
+                f"[bold white]{_format_duration(avg_e2e)} E2E[/bold white]"
             )
         else:
             self.query_one("#card-avgreq", MetricCard).update_value("[dim]—[/dim]")

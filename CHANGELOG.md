@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- The **Average Request** card's E2E latency now shows the cumulative
+  per-request mean (all-time sum/count), matching the mean in/out token
+  figures beside it. It previously reused the recent windowed mean, which
+  collapsed to the last request's latency under low traffic. The dedicated
+  **E2E Latency** card still shows the recent windowed mean. (#1)
+
 ## [1.0.3] - 2026-07-12
 
 ### Added

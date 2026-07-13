@@ -75,6 +75,9 @@ def test_parse_into_metrics():
     assert m.prompt_tokens_total == pytest.approx(12000.0)
     assert m.generation_tokens_total == pytest.approx(45000.0)
     assert m.latency_mean_s["e2e"] == pytest.approx(320.5 / 200.0)
+    # Average Request card reads the cumulative per-request mean, not the
+    # windowed one _compute_rates later writes into latency_mean_s.
+    assert m.avg_e2e_latency_s == pytest.approx(320.5 / 200.0)
     # Other latency histograms parsed; an absent one (tpot) stays unset.
     assert m.latency_mean_s["ttft"] == pytest.approx(50.0 / 200.0)
     assert m.latency_mean_s["queue"] == pytest.approx(20.0 / 200.0)
@@ -104,6 +107,34 @@ def test_rate_computation():
 
     assert current.generation_tokens_per_sec == pytest.approx(100.0)
     assert current.prompt_tokens_per_sec == pytest.approx(50.0)
+
+
+def test_compute_rates_leaves_cumulative_e2e_mean():
+    # _compute_rates overwrites latency_mean_s["e2e"] with the recent windowed
+    # mean, but must not touch avg_e2e_latency_s (the cumulative per-request
+    # mean the Average Request card shows). One request in the window would
+    # otherwise make the "average" equal that single request's latency.
+    poller = MetricsPoller(base_url="http://localhost:8000")
+    poller._prev_metrics = VllmMetrics(
+        timestamp=0.0,
+        server_reachable=True,
+        latency_sum={"e2e": 300.0},
+        latency_count={"e2e": 100.0},
+    )
+    current = VllmMetrics(
+        timestamp=2.0,
+        server_reachable=True,
+        latency_sum={"e2e": 342.0},
+        latency_count={"e2e": 101.0},
+        latency_mean_s={"e2e": 342.0 / 101.0},
+        avg_e2e_latency_s=342.0 / 101.0,
+    )
+    poller._compute_rates(current)
+
+    # Windowed mean = single new request: (342 - 300) / (101 - 100) = 42.0.
+    assert current.latency_mean_s["e2e"] == pytest.approx(42.0)
+    # Cumulative mean is unchanged and stays a true average.
+    assert current.avg_e2e_latency_s == pytest.approx(342.0 / 101.0)
 
 
 def test_cache_config_enrichment():

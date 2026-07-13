@@ -150,8 +150,12 @@ Latency values are *recent* means (the change in the histogram's sum/count betwe
 
 ```bash
 pip install -e ".[dev]"
+ruff check src/ tests/
+mypy src/
 pytest
 ```
+
+CI runs the same lint, type-check, and test steps across Python 3.10/3.11/3.12 on every push and pull request, and gates the Docker image build on them.
 
 Regenerate the README screenshot with `python scripts/screenshot.py` (saves to `docs/preview.png`).
 
